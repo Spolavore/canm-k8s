@@ -1,0 +1,20 @@
+{
+  "name": "canm",
+  "version": "1.0.0",
+  "description": "Cost Aware Node Migration focused on Kubernetes and aplied on GKE",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Joao Vitor do Amaral Spolavore",
+  "license": "ISC",
+  "dependencies": {
+    "@kubernetes/client-node": "^1.4.0",
+    "axios": "^1.15.2",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
