@@ -5,16 +5,32 @@
   "main": "src/index.js",
   "type": "commonjs",
   "scripts": {
+    "dev": "ts-node -r tsconfig-paths/register src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Joao Vitor do Amaral Spolavore",
   "license": "ISC",
+  "_moduleAliases": {
+    "@": ".",
+    "@lib": "src/lib",
+    "@services": "src/services",
+    "@components": "src/components",
+    "@config": "src/config",
+    "@utils": "src/utils"
+  },
   "dependencies": {
     "@kubernetes/client-node": "^1.4.0",
     "axios": "^1.15.2",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "module-alias": "^2.3.4"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@types/node": "^25.6.0",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^6.0.3"
   }
 }

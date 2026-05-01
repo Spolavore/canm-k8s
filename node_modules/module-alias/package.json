@@ -1,0 +1,69 @@
+{
+  "name": "module-alias",
+  "description": "Create aliases of directories and register custom module paths",
+  "version": "2.3.4",
+  "author": {
+    "name": "Nick Gavrilov",
+    "email": "artnikpro@gmail.com"
+  },
+  "scripts": {
+    "test": "npm run lint && npm run testonly",
+    "testonly": "NODE_ENV=test mocha test/specs.js",
+    "testonly-watch": "NODE_ENV=test mocha -w test/specs.js",
+    "test:esm": "NODE_ENV=test mocha test/esm/unit.mjs test/esm/integration.js",
+    "test:all": "npm run testonly && npm run test:esm",
+    "lint": "standard"
+  },
+  "bugs": {
+    "url": "https://github.com/ilearnio/module-alias/issues"
+  },
+  "homepage": "https://github.com/ilearnio/module-alias",
+  "keywords": [
+    "extend",
+    "modules",
+    "node",
+    "path",
+    "resolve"
+  ],
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./index.js",
+      "import": "./index.mjs"
+    },
+    "./register": {
+      "require": "./register.js",
+      "import": "./register.mjs"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.mjs",
+    "index.d.ts",
+    "register.js",
+    "register.mjs",
+    "esm-loader.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ilearnio/module-alias.git"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "hello-world-classic": "github:ilearnio/hello-world-classic",
+    "husky": "^3.0.2",
+    "mocha": "^2.4.5",
+    "semver": "^6.1.1",
+    "standard": "^12.0.1"
+  },
+  "husky": {
+    "hooks": {
+      "pre-push": "npm run test"
+    }
+  }
+}
