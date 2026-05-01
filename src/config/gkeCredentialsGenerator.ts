@@ -1,12 +1,8 @@
-const { execSync } = require('child_process');
-const REQUIRED_ENV_VARS = ['GKE_CLUSTER_NAME', 'GKE_REGION', 'GKE_PROJECT'];
+import { execSync } from 'child_process';
 
-/**
- * Command to configure GKE cluster config in your local machine
- * File populated: ~/.kube/config
- * @returns void
- */
-function setCredentials() {
+const REQUIRED_ENV_VARS = ['GKE_CLUSTER_NAME', 'GKE_REGION', 'GKE_PROJECT'] as const;
+
+function setCredentials(): void {
   const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
 
   if (missing.length > 0) {
@@ -27,4 +23,4 @@ function setCredentials() {
   execSync(k8sCredentialsCommand);
 }
 
-module.exports = { setCredentials };
+export { setCredentials };
