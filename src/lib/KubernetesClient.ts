@@ -1,22 +1,65 @@
 import * as k8s from '@kubernetes/client-node';
 import * as gkeCredentialsGenerator from '@config/gkeCredentialsGenerator';
+import { execSync } from 'node:child_process';
 
-const externalProvider = process.env.EXTERNAL_PROVIDER;
+export type ProviderConfig = {
+  clusterName: string;
+  region: string;
+  project: string;
+};
 
-switch (externalProvider) {
-  case 'gke':
-    gkeCredentialsGenerator.setCredentials();
-    break;
-  default:
-    console.log('[KubernetesClient] No external provider detected, will try using local kube config file');
+export function loadProviderConfig(): ProviderConfig {
+  switch (process.env.EXTERNAL_PROVIDER) {
+    case 'gke':
+      gkeCredentialsGenerator.setCredentials();
+      return {
+        clusterName: process.env.GKE_CLUSTER_NAME ?? '',
+        region: process.env.GKE_REGION ?? '',
+        project: process.env.GKE_PROJECT ?? '',
+      };
+    default:
+      console.log('[KubernetesClient] No external provider detected, will try using local kube config file');
+      return { clusterName: '', region: '', project: '' };
+  }
 }
 
 class KubernetesClient {
   private kc: k8s.KubeConfig;
+  private clusterName: string;
+  private region: string;
+  private project: string;
 
-  constructor() {
+  constructor(config: ProviderConfig) {
+    this.clusterName = config.clusterName;
+    this.region = config.region;
+    this.project = config.project;
+
     this.kc = new k8s.KubeConfig();
     this.kc.loadFromDefault();
+  }
+
+  getClusterName(): string {
+    return this.clusterName;
+  }
+
+  getRegion(): string {
+    return this.region;
+  }
+
+  getProject(): string {
+    return this.project;
+  }
+
+  drain(nodeName: string, gracefulPeriod?: number, force?: boolean): boolean {
+    const gracefulPeriodCmd = gracefulPeriod ? `--grace-period=${gracefulPeriod}` : '';
+    const forceCmd = force ? '--force --ignore-daemonsets' : '';
+    try {
+      execSync(`kubectl drain ${nodeName} ${gracefulPeriodCmd} ${forceCmd}`, { encoding: 'utf-8' });
+      return true;
+    } catch (error) {
+      console.error(`[KubernetesClient] Error while trying to drain ${nodeName}: ${error}`);
+      return false;
+    }
   }
 
   getCoreV1Api(): k8s.CoreV1Api {
