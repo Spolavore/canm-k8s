@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   const networkThroughput = await metricsAdapter.getNodesNetworkReceivedBytes('1h', undefined, 'mb') as any;
   const memoryUsage = await metricsAdapter.getNodesMemoryUsage();
   // nodeMigrator.addNodeHighNodePool();
-  console.log(nodeMigrator.removeNodeHighNodePool('gke-beta-pool-beta-high-0de43245-c1mh'))
+  console.log(nodeMigrator.removeNodeHighNodePool('gke-beta-pool-beta-high-0de43245-x5sj'))
 }
 
 main();

@@ -14,7 +14,7 @@ class MetricsAdapter {
     const results = await instantQuery({ query: CPU_USAGE_QUERY, time_window });
 
     if (results && reduction) {
-      return this.__reduct(results, reduction);
+      return this.reduct(results, reduction);
     }
 
     return results;
@@ -30,7 +30,7 @@ class MetricsAdapter {
     const results = await instantQuery({ query: NETWORK_RECEIVED_BYTES_QUERY + `/ ${convertionCoefficients[unit]}` , time_window });
 
     if (results && reduction) {
-      return this.__reduct(results, reduction);
+      return this.reduct(results, reduction);
     }
 
     return results;
@@ -44,13 +44,13 @@ class MetricsAdapter {
   ): Promise<unknown> {
     const results = await instantQuery({ query: MEMORY_USAGE_QUERY });
     if (results && reduction) {
-      return this.__reduct(results, reduction);
+      return this.reduct(results, reduction);
     }
 
     return results;
   }
 
-  __reduct(results: Array<PrometheusResults>, reduction: AvailableReductions): PrometheusResults {
+  private reduct(results: Array<PrometheusResults>, reduction: AvailableReductions): PrometheusResults {
     const sum = results.reduce((acc, curr) => acc + Number(curr.value[1]), 0);
     const nodes = results.map((r: any) => r.metric?.node).filter(Boolean).join(', ');
 
