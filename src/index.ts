@@ -3,10 +3,14 @@ import { loadProviderConfig } from '@lib/KubernetesClient';
 import MetricsAdapter from '@components/MetricsAdapter';
 import GkeNodeMigrator from '@components/GkeNodeMigrator';
 
-// TODO -> VERIFICAR SE DEPOIS DA CONVERSAO O TIPO É um numero mesmo e sao maiores que 0
-const cpu_weight = parseFloat(process.env.CPU_WEIGHT || "") || 0.65;
-const memory_weight = parseFloat(process.env.MEMORY_WEIGHT || "") || 0.25;
-const network_weight = parseFloat(process.env.NETWORK_WEIGHT || "") || 0.1;
+const parseWeight = (value: string | undefined, fallback: number): number => {
+  const parsed = parseFloat(value ?? '');
+  return isNaN(parsed) ? fallback : parsed;
+};
+
+const cpu_weight = parseWeight(process.env.CPU_WEIGHT, 0.65);
+const memory_weight = parseWeight(process.env.MEMORY_WEIGHT, 0.25);
+const network_weight = parseWeight(process.env.NETWORK_WEIGHT, 0.1);
 
 
 const providerConfig = loadProviderConfig();
