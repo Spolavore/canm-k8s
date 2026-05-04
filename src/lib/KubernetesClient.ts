@@ -62,6 +62,14 @@ class KubernetesClient {
     }
   }
 
+  static async getNodeNames(): Promise<string[]> {
+    const kc = new k8s.KubeConfig();
+    kc.loadFromDefault();
+    const api = kc.makeApiClient(k8s.CoreV1Api);
+    const nodeList = await api.listNode();
+    return nodeList.items.map((node: k8s.V1Node) => node.metadata?.name ?? '').filter(Boolean);
+  }
+
   getCoreV1Api(): k8s.CoreV1Api {
     return this.kc.makeApiClient(k8s.CoreV1Api);
   }
