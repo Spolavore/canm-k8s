@@ -1,7 +1,10 @@
 import * as AxiosService from '@/services/axios.service';
 
 export type PrometheusResults = {
-  metric: Object;
+  metric: {
+    node: string;
+    [key: string]: string;
+  };
   value: [number, string];
 };
 

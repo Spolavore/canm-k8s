@@ -1,16 +1,58 @@
 import { instantQuery, PrometheusResults } from '@/services/prometheus.service';
 import { CPU_USAGE_QUERY, NETWORK_RECEIVED_BYTES_QUERY, MEMORY_USAGE_QUERY } from '@/repositories/prometheus.queries';
-import { ByteUnits, convertionCoefficients } from '@/utils/bytesUnits';
+import { ByteUnits, convertionCoefficients, normalize } from '@/utils';
+import KubernetesClient from '@/lib/KubernetesClient';
 type AvailableReductions = 'max' | 'min' | 'avg' | 'sum';
-
+type NodeScore = {
+  node: string,
+  score: number
+}
 class MetricsAdapter {
+  private cpu_weight: number
+  private memory_weight: number
+  private network_weight: number
+
+  constructor(cpu_weight: number, memory_weight: number, network_weight: number){
+    const [cpu, memory, network] = normalize([cpu_weight, memory_weight, network_weight]);
+    this.cpu_weight = cpu;
+    this.memory_weight = memory;
+    this.network_weight = network;
+  }
+
+  async getNodesScore(time_window: string = '1h'): Promise<NodeScore[]>{
+    const nodesScore: Record<string, number> = {};
+    const nodes = await KubernetesClient.getNodeNames();
+    nodes.forEach(n => {
+      nodesScore[n] = -1
+    })
+
+    const [cpuMetrics, memoryMetrics, networkMetrics] = await Promise.all([
+      this.getNodesCpuUsage(time_window),
+      this.getNodesMemoryUsage(),
+      this.getNodesNetworkReceivedBytes(time_window, undefined, 'mb')
+    ]) as [PrometheusResults[], PrometheusResults[], PrometheusResults[]]
+
+    cpuMetrics.forEach(cm => {
+      nodesScore[cm.metric.node] = Number(cm.value[1]) * this.cpu_weight;
+    })
+
+    memoryMetrics.forEach(mm => {
+      nodesScore[mm.metric.node] += Number(mm.value[1]) * this.memory_weight;
+    })
+
+    networkMetrics.forEach(nm => {
+      nodesScore[nm.metric.node] += Number(nm.value[1]) * this.network_weight;
+    })
+
+    return Object.entries(nodesScore).map(([node, score]) => ({ node, score }));
+  }
   /*
   * Returns the CPU use of each node in the cluster in percentage
   */
   async getNodesCpuUsage(
     time_window: string,
     reduction?: AvailableReductions
-  ): Promise<unknown> {
+  ): Promise<PrometheusResults[] | PrometheusResults> {
     const results = await instantQuery({ query: CPU_USAGE_QUERY, time_window });
 
     if (results && reduction) {
@@ -26,7 +68,7 @@ class MetricsAdapter {
     time_window: string,
     reduction?: AvailableReductions,
     unit: ByteUnits = 'b',
-  ): Promise<unknown> {
+  ): Promise<PrometheusResults[] | PrometheusResults> {
     const results = await instantQuery({ query: NETWORK_RECEIVED_BYTES_QUERY + `/ ${convertionCoefficients[unit]}` , time_window });
 
     if (results && reduction) {
@@ -41,7 +83,7 @@ class MetricsAdapter {
   */
   async getNodesMemoryUsage(
     reduction?: AvailableReductions
-  ): Promise<unknown> {
+  ): Promise<PrometheusResults[] | PrometheusResults> {
     const results = await instantQuery({ query: MEMORY_USAGE_QUERY });
     if (results && reduction) {
       return this.reduct(results, reduction);
@@ -72,6 +114,7 @@ class MetricsAdapter {
 
       case 'sum':
         return { metric: { node: nodes }, value: [results[0].value[0], String(sum)] };
+      
     }
   }
 }
