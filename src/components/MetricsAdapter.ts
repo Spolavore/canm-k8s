@@ -31,7 +31,7 @@ class MetricsAdapter {
       this.getNodesMemoryUsage(),
       this.getNodesNetworkReceivedBytes(time_window, undefined, 'mb')
     ]) as [PrometheusResults[], PrometheusResults[], PrometheusResults[]]
-
+    console.log(this.cpu_weight, this.memory_weight, this.network_weight)
     cpuMetrics.forEach(cm => {
       nodesScore[cm.metric.node] = Number(cm.value[1]) * this.cpu_weight;
     })
