@@ -1,6 +1,7 @@
 import * as k8s from '@kubernetes/client-node';
 import * as gkeCredentialsGenerator from '@config/gkeCredentialsGenerator';
 import { execSync } from 'node:child_process';
+import { AvailableProviders } from '@/types';
 
 export type ProviderConfig = {
   clusterName: string;
@@ -9,7 +10,8 @@ export type ProviderConfig = {
 };
 
 export function loadProviderConfig(): ProviderConfig {
-  switch (process.env.EXTERNAL_PROVIDER) {
+  const provider = (process.env.EXTERNAL_PROVIDER ?? null) as AvailableProviders;
+  switch (provider) {
     case 'gke':
       gkeCredentialsGenerator.setCredentials();
       return {
