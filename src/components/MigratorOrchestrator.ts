@@ -1,27 +1,29 @@
 import MetricsAdapter from "@components/MetricsAdapter";
 import GkeNodeMigrator from "@components/GkeNodeMigrator";
-import { AvailableProviders, RawWeightsConfig, WeightsConfig } from "@/types";
+import { AvailableProviders, MigrationConfig, RawWeightsConfig, WeightsConfig } from "@/types";
 import { ProviderConfig } from "@/lib/KubernetesClient";
 import { exit } from "process";
 
 class MigratorOrchestrator {
-    
+
     private DEFAULT_CPU_WEIGHT = 0.60;
     private DEFAULT_MEMORY_WEIGHT = 0.3;
     private DEFAULT_NETWORK_WEIGHT = 0.1;
-   
+
     private metrics: MetricsAdapter;
     private nodeMigrator!: GkeNodeMigrator;
 
-    private highNodePool: string;
-    private lowNodePool: string;
+    private migrationConfig: MigrationConfig;
     private provider: AvailableProviders;
     private weights: WeightsConfig;
 
 
-    constructor(hNodePool: string, lNodePool: string, rawWeights: RawWeightsConfig, provider: AvailableProviders, providerConf: ProviderConfig){
-        this.highNodePool = hNodePool;
-        this.lowNodePool = lNodePool;
+    constructor(migrationConfig: MigrationConfig, rawWeights: RawWeightsConfig, provider: AvailableProviders, providerConf: ProviderConfig){
+        this.migrationConfig = {
+            policy: 'prioritizeCost',
+            checkInterval: 60,
+            ...migrationConfig,
+        };
         this.provider = provider;
         this.weights = {
             cpu: this.parseWeight(rawWeights.cpu, this.DEFAULT_CPU_WEIGHT),
@@ -39,7 +41,7 @@ class MigratorOrchestrator {
     private selectNodeMigrator (config: ProviderConfig) {
         switch(this.provider){
             case 'gke':
-                this.nodeMigrator = new GkeNodeMigrator(config, this.lowNodePool, this.highNodePool);
+                this.nodeMigrator = new GkeNodeMigrator(config, this.migrationConfig.lowNodePool, this.migrationConfig.highNodePool);
                 break
         }
     }
