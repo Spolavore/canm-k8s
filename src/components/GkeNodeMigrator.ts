@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import KubernetesClient from "@lib/KubernetesClient";
 import type { ProviderConfig } from "@lib/KubernetesClient";
+import type { NodeScore, ExpandedNodeScore } from "@/types";
 
 type GkeInstance = {
   id: string;
@@ -27,7 +28,27 @@ class GkeNodeMigrator {
   drain(nodePool: string, gracefulPeriod?: number, force?: boolean): boolean {
     return this.k8sClient.drain(nodePool, gracefulPeriod, force);
   }
+  addNodeHighNodePool(): boolean {
+    console.log(
+      `[GKE Node Migrator] Resizing high demand node pool: ${this.hNodePool}`
+    );
+    return this.resizeNodePool(this.hNodePool, 1);
+  }
 
+  addNodeLowNodePool(numNodes: number): boolean {
+    console.log(
+      `[GKE Node Migrator] Resizing low demand node pool: ${this.lNodePool}`
+    );
+    return this.resizeNodePool(this.lNodePool, numNodes);
+  }
+
+  removeNodeHighNodePool(nodeName: string): boolean {
+    return this.removeNode(nodeName, this.hNodePool);
+  }
+
+  removeNodeLowNodePool(nodeName: string): boolean {
+    return this.removeNode(nodeName, this.lNodePool);
+  }
   getClusterNodeInfo(): Array<any> {
     const clusterName = this.k8sClient.getClusterName();
     const region = this.k8sClient.getRegion();
@@ -84,27 +105,7 @@ class GkeNodeMigrator {
     }
   }
 
-  addNodeHighNodePool(): boolean {
-    console.log(
-      `[GKE Node Migrator] Resizing high demand node pool: ${this.hNodePool}`
-    );
-    return this.resizeNodePool(this.hNodePool, 1);
-  }
 
-  addNodeLowNodePool(numNodes: number): boolean {
-    console.log(
-      `[GKE Node Migrator] Resizing low demand node pool: ${this.lNodePool}`
-    );
-    return this.resizeNodePool(this.lNodePool, numNodes);
-  }
-
-  removeNodeHighNodePool(nodeName: string): boolean {
-    return this.removeNode(nodeName, this.hNodePool);
-  }
-
-  removeNodeLowNodePool(nodeName: string): boolean {
-    return this.removeNode(nodeName, this.lNodePool);
-  }
   private removeNode(nodeName: string, nodePool: string): boolean {
     const instances = this.getNodesFromPool(nodePool);
     const electedInstance: GkeInstance | undefined = instances.find(
@@ -180,6 +181,25 @@ class GkeNodeMigrator {
       }
     }
     return instancesResponse;
+  }
+  expandNodesInfo(nodes: NodeScore[]): ExpandedNodeScore[]{
+    const nodesHNodePool = this.getNodesFromPool(this.hNodePool).map((hnp) => hnp.name);
+    const nodesLNodePool = this.getNodesFromPool(this.hNodePool).map((lnp) => lnp.name);
+    const getNodePoolFromNode = (nodeName: string) => { 
+      if(nodesHNodePool.includes(nodeName)){
+        return this.hNodePool;
+      } 
+      return nodesLNodePool.includes(nodeName) ? this.lNodePool : null;
+    }
+    const expandedNodes: ExpandedNodeScore[]= []
+    nodes.forEach(n => {
+        expandedNodes.push({
+          node: n.node,
+          score: n.score,
+          nodePool: getNodePoolFromNode(n.node)
+        })
+    })
+    return expandedNodes;
   }
 }
 

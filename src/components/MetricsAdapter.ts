@@ -2,12 +2,11 @@ import { instantQuery, PrometheusResults } from '@/services/prometheus.service';
 import { CPU_USAGE_QUERY, NETWORK_RECEIVED_BYTES_QUERY, MEMORY_USAGE_QUERY } from '@/repositories/prometheus.queries';
 import { ByteUnits, convertionCoefficients, normalize } from '@/utils';
 import KubernetesClient from '@/lib/KubernetesClient';
-import { WeightsConfig } from '@/types';
+import type { WeightsConfig } from '@/types';
+import type { NodeScore } from '@/types';
+
 type AvailableReductions = 'max' | 'min' | 'avg' | 'sum';
-type NodeScore = {
-  node: string,
-  score: number
-}
+
 class MetricsAdapter {
   private cpu_weight: number
   private memory_weight: number
@@ -32,7 +31,7 @@ class MetricsAdapter {
       this.getNodesMemoryUsage(),
       this.getNodesNetworkReceivedBytes(time_window, undefined, 'mb')
     ]) as [PrometheusResults[], PrometheusResults[], PrometheusResults[]]
-    console.log(this.cpu_weight, this.memory_weight, this.network_weight)
+
     cpuMetrics.forEach(cm => {
       nodesScore[cm.metric.node] = Number(cm.value[1]) * this.cpu_weight;
     })

@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   // const networkThroughput = await metricsAdapter.getNodesNetworkReceivedBytes('1h', undefined, 'mb') as any;
   // const memoryUsage = await metricsAdapter.getNodesMemoryUsage();
   // const nodesScore = await metricsAdapter.getNodesScore();
-  await migrator.startLoop();
+  await migrator.start();
 }
 
 main();
