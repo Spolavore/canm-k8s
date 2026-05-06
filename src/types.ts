@@ -1,5 +1,5 @@
 export type AvailableProviders = 'gke' | null;
-
+export type MigrationPolicies = 'prioritizeCost' | 'prioritizePerfomance'
 export type RawWeightsConfig = {
     cpu?: string;
     memory?: string;
@@ -24,6 +24,10 @@ export type ExpandedNodeScore = {
 }
 
 export type MigrationConfig = {
+    highNodePool: string,
+    lowNodePool: string,
     lowScoreThreshold: number,
     highScoreThreshold: number,
+    policy?: MigrationPolicies,
+    checkInterval?: number
 }
