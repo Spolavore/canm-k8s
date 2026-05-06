@@ -48,9 +48,12 @@ class MigratorOrchestrator {
         return isNaN(parsed) ? fallback : parsed;
     };
 
-    async startLoop(){
-        const nodes = await this.metrics.getNodesScore('1h');
-        console.log(nodes)
+    async start(){
+        const nodesScore = await this.metrics.getNodesScore('1h');
+        if(nodesScore && nodesScore.length !== 0){
+            const nodeScoreExpanded = this.nodeMigrator.expandNodesInfo(nodesScore);
+            console.log(nodeScoreExpanded)
+        }
     }
 };
 

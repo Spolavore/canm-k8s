@@ -12,6 +12,18 @@ export type WeightsConfig = {
     network: number;
 };
 
+export type NodeScore = {
+  node: string,
+  score: number
+}
+
+export type ExpandedNodeScore = {
+    node: string,
+    score: number,
+    nodePool: string | null
+}
+
 export type MigrationConfig = {
-    scoreThreshold: number
+    lowScoreThreshold: number,
+    highScoreThreshold: number,
 }
