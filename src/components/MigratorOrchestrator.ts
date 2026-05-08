@@ -3,6 +3,7 @@ import GkeNodeMigrator from "@components/GkeNodeMigrator";
 import { AvailableProviders, MigrationConfig, RawWeightsConfig, WeightsConfig } from "@/types";
 import { ProviderConfig } from "@/lib/KubernetesClient";
 import { exit } from "process";
+import type { ExpandedNodeScore } from "@/types";
 
 class MigratorOrchestrator {
 
@@ -49,13 +50,20 @@ class MigratorOrchestrator {
         const parsed = parseFloat(value ?? '');
         return isNaN(parsed) ? fallback : parsed;
     };
-
-    async start(){
+    private async getNodesScore(): Promise<ExpandedNodeScore[] | null> {
         const nodesScore = await this.metrics.getNodesScore('1h');
         if(nodesScore && nodesScore.length !== 0){
-            const nodeScoreExpanded = this.nodeMigrator.expandNodesInfo(nodesScore);
-            console.log(nodeScoreExpanded)
-        }
+            return this.nodeMigrator.expandNodesInfo(nodesScore);
+        };
+        return null
+    }
+    async start() {
+        const tick = async () => {
+            const nodesScore = await this.getNodesScore();
+            console.log(nodesScore);
+            setTimeout(tick, this.migrationConfig.checkInterval! * 1000);
+        };
+        await tick();
     }
 };
 
