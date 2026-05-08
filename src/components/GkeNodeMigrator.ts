@@ -152,8 +152,8 @@ class GkeNodeMigrator {
   private getInstanceGroup(nodePool: string) {
     const nodePools = this.getClusterNodeInfo();
     // Always returns an array with 1 elemente since de node name in GKE is a unique identifier.
-    const highNodePool = nodePools.filter((n) => n.name === nodePool);
-    const instanceGroupUrl = highNodePool[0].instanceGroupUrls;
+    const np = nodePools.filter((n) => n.name === nodePool);
+    const instanceGroupUrl = np[0].instanceGroupUrls;
     return instanceGroupUrl;
   }
   private getNodesFromPool(nodePool: string): Array<any> {
@@ -182,24 +182,48 @@ class GkeNodeMigrator {
     }
     return instancesResponse;
   }
+  getInstancesCreationDates(instanceNames: string[]): Record<string, string | null> {
+    const result: Record<string, string | null> = Object.fromEntries(instanceNames.map((n) => [n, null]));
+    if (instanceNames.length === 0) return result;
+
+    const filter = `name=(${instanceNames.join(" ")})`;
+    try {
+      const response = execSync(
+        `gcloud compute instances list \
+        --filter="${filter}" \
+        --project=${this.k8sClient.getProject()} \
+        --format=json`,
+        { encoding: "utf-8", stdio: "pipe" }
+      );
+      const instances: Array<{ name: string; creationTimestamp: string }> = JSON.parse(response);
+      instances.forEach((i) => {
+        result[i.name] = i.creationTimestamp ?? null;
+      });
+    } catch (error) {
+      console.error(
+        `[GKE Node Migrator] Error while getting creation dates for instances: ${error}`
+      );
+    }
+    return result;
+  }
+
   expandNodesInfo(nodes: NodeScore[]): ExpandedNodeScore[]{
     const nodesHNodePool = this.getNodesFromPool(this.hNodePool).map((hnp) => hnp.name);
-    const nodesLNodePool = this.getNodesFromPool(this.hNodePool).map((lnp) => lnp.name);
-    const getNodePoolFromNode = (nodeName: string) => { 
-      if(nodesHNodePool.includes(nodeName)){
-        return this.hNodePool;
-      } 
+    const nodesLNodePool = this.getNodesFromPool(this.lNodePool).map((lnp) => lnp.name);
+
+    const getNodePoolFromNode = (nodeName: string) => {
+      if (nodesHNodePool.includes(nodeName)) return this.hNodePool;
       return nodesLNodePool.includes(nodeName) ? this.lNodePool : null;
     }
-    const expandedNodes: ExpandedNodeScore[]= []
-    nodes.forEach(n => {
-        expandedNodes.push({
-          node: n.node,
-          score: n.score,
-          nodePool: getNodePoolFromNode(n.node)
-        })
-    })
-    return expandedNodes;
+
+    const creationDates = this.getInstancesCreationDates(nodes.map((n) => n.node));
+
+    return nodes.map((n) => ({
+      node: n.node,
+      score: n.score,
+      nodePool: getNodePoolFromNode(n.node),
+      creationTimestamp: creationDates[n.node] ?? null,
+    }));
   }
 }
 

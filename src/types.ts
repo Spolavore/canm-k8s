@@ -20,7 +20,8 @@ export type NodeScore = {
 export type ExpandedNodeScore = {
     node: string,
     score: number,
-    nodePool: string | null
+    nodePool: string | null,
+    creationTimestamp: string | null
 }
 
 export type MigrationConfig = {
