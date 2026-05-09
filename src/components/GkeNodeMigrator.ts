@@ -25,28 +25,38 @@ class GkeNodeMigrator {
     this.lNodePool = lNodePool;
   }
 
-  drain(nodePool: string, gracefulPeriod?: number, force?: boolean): boolean {
-    return this.k8sClient.drain(nodePool, gracefulPeriod, force);
+  drain(nodeName: string, gracefulPeriod?: number, force?: boolean): boolean {
+    console.log(
+      `[GKE Node Migrator] Draning ${nodeName}...`
+    );
+    return this.k8sClient.drain(nodeName, gracefulPeriod, force);
   }
   addNodeHighNodePool(): boolean {
     console.log(
-      `[GKE Node Migrator] Resizing high demand node pool: ${this.hNodePool}`
+      `[GKE Node Migrator] Adding node on high demand node pool: ${this.hNodePool}`
     );
-    return this.resizeNodePool(this.hNodePool, 1);
+    return this.resizeNodePool(this.hNodePool, this.getNodePoolCount(this.hNodePool) + 1);
   }
 
-  addNodeLowNodePool(numNodes: number): boolean {
+  addNodeLowNodePool(): boolean {
     console.log(
-      `[GKE Node Migrator] Resizing low demand node pool: ${this.lNodePool}`
+      `[GKE Node Migrator] Adding node on low demand node pool: ${this.lNodePool}`
     );
-    return this.resizeNodePool(this.lNodePool, numNodes);
+    
+    return this.resizeNodePool(this.lNodePool, this.getNodePoolCount(this.lNodePool) + 1);
   }
 
   removeNodeHighNodePool(nodeName: string): boolean {
+    console.log(
+      `[GKE Node Migrator] Removing node on high demand node pool: ${this.hNodePool}`
+    );
     return this.removeNode(nodeName, this.hNodePool);
   }
 
   removeNodeLowNodePool(nodeName: string): boolean {
+    console.log(
+      `[GKE Node Migrator] Removing node on low demand node pool: ${this.lNodePool}`
+    );
     return this.removeNode(nodeName, this.lNodePool);
   }
   getClusterNodeInfo(): Array<any> {
@@ -207,6 +217,12 @@ class GkeNodeMigrator {
     return result;
   }
 
+  getNodePoolCount(nodePool: string): number {
+    const nodePools = this.getClusterNodeInfo();
+    const np = nodePools.find((n) => n.name === nodePool);
+    return np?.initialNodeCount ?? 0;
+  }
+
   expandNodesInfo(nodes: NodeScore[]): ExpandedNodeScore[]{
     const nodesHNodePool = this.getNodesFromPool(this.hNodePool).map((hnp) => hnp.name);
     const nodesLNodePool = this.getNodesFromPool(this.lNodePool).map((lnp) => lnp.name);
@@ -218,12 +234,12 @@ class GkeNodeMigrator {
 
     const creationDates = this.getInstancesCreationDates(nodes.map((n) => n.node));
 
-    return nodes.map((n) => ({
-      node: n.node,
-      score: n.score,
-      nodePool: getNodePoolFromNode(n.node),
-      creationTimestamp: creationDates[n.node] ?? null,
-    }));
+    return nodes.flatMap((n) => {
+      const nodePool = getNodePoolFromNode(n.node);
+      const creationTimestamp = creationDates[n.node];
+      if (!nodePool || !creationTimestamp) return [];
+      return [{ node: n.node, score: n.score, nodePool, creationTimestamp }];
+    });
   }
 }
 

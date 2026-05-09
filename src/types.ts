@@ -1,4 +1,5 @@
 export type AvailableProviders = 'gke' | null;
+export type ComparisonOperator = 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
 export type MigrationPolicies = 'prioritizeCost' | 'prioritizePerfomance'
 export type RawWeightsConfig = {
     cpu?: string;
@@ -20,8 +21,8 @@ export type NodeScore = {
 export type ExpandedNodeScore = {
     node: string,
     score: number,
-    nodePool: string | null,
-    creationTimestamp: string | null
+    nodePool: string,
+    creationTimestamp: string
 }
 
 export type MigrationConfig = {
