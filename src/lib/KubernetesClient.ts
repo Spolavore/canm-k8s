@@ -54,7 +54,7 @@ class KubernetesClient {
 
   drain(nodeName: string, gracefulPeriod?: number, force?: boolean): boolean {
     const gracefulPeriodCmd = gracefulPeriod ? `--grace-period=${gracefulPeriod}` : '';
-    const forceCmd = force ? '--force --ignore-daemonsets' : '';
+    const forceCmd = force ? '--force --ignore-daemonsets --delete-emptydir-data' : '';
     try {
       execSync(`kubectl drain ${nodeName} ${gracefulPeriodCmd} ${forceCmd}`, { encoding: 'utf-8' });
       return true;

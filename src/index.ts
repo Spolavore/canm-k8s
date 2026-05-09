@@ -19,12 +19,9 @@ const migrator = new MigratorOrchestrator(
   'gke',
   providerConfig
 );
+
 async function main(): Promise<void> {
-  // const cpuUsage = await metricsAdapter.getNodesCpuUsage('1h') as any;
-  // const networkThroughput = await metricsAdapter.getNodesNetworkReceivedBytes('1h', undefined, 'mb') as any;
-  // const memoryUsage = await metricsAdapter.getNodesMemoryUsage();
-  // const nodesScore = await metricsAdapter.getNodesScore();
-  migrator.start();
+  await migrator.start();
 }
 
 main();
