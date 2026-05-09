@@ -2,6 +2,9 @@ import { execSync } from "node:child_process";
 import KubernetesClient from "@lib/KubernetesClient";
 import type { ProviderConfig } from "@lib/KubernetesClient";
 import type { NodeScore, ExpandedNodeScore } from "@/types";
+import { logger } from "@/utils";
+
+const COMPONENT = "GKE Node Migrator";
 
 type GkeInstance = {
   id: string;
@@ -26,37 +29,26 @@ class GkeNodeMigrator {
   }
 
   drain(nodeName: string, gracefulPeriod?: number, force?: boolean): boolean {
-    console.log(
-      `[GKE Node Migrator] Draning ${nodeName}...`
-    );
+    logger(COMPONENT, `Draning ${nodeName}...`);
     return this.k8sClient.drain(nodeName, gracefulPeriod, force);
   }
   addNodeHighNodePool(): boolean {
-    console.log(
-      `[GKE Node Migrator] Adding node on high demand node pool: ${this.hNodePool}`
-    );
+    logger(COMPONENT, `Adding node on high demand node pool: ${this.hNodePool}`);
     return this.resizeNodePool(this.hNodePool, this.getNodePoolCount(this.hNodePool) + 1);
   }
 
   addNodeLowNodePool(): boolean {
-    console.log(
-      `[GKE Node Migrator] Adding node on low demand node pool: ${this.lNodePool}`
-    );
-    
+    logger(COMPONENT, `Adding node on low demand node pool: ${this.lNodePool}`);
     return this.resizeNodePool(this.lNodePool, this.getNodePoolCount(this.lNodePool) + 1);
   }
 
   removeNodeHighNodePool(nodeName: string): boolean {
-    console.log(
-      `[GKE Node Migrator] Removing node on high demand node pool: ${this.hNodePool}`
-    );
+    logger(COMPONENT, `Removing node on high demand node pool: ${this.hNodePool}`);
     return this.removeNode(nodeName, this.hNodePool);
   }
 
   removeNodeLowNodePool(nodeName: string): boolean {
-    console.log(
-      `[GKE Node Migrator] Removing node on low demand node pool: ${this.lNodePool}`
-    );
+    logger(COMPONENT, `Removing node on low demand node pool: ${this.lNodePool}`);
     return this.removeNode(nodeName, this.lNodePool);
   }
   getClusterNodeInfo(): Array<any> {
@@ -77,9 +69,7 @@ class GkeNodeMigrator {
       const responseFormated = JSON.parse(response);
       return responseFormated;
     } catch (error) {
-      console.log(
-        `[GKE Node Migrator] Error while accessing node pools informations: ${error}`
-      );
+      logger(COMPONENT, `Error while accessing node pools informations: ${error}`, 'error');
       return [];
     }
   }
@@ -102,15 +92,11 @@ class GkeNodeMigrator {
         { stdio: "pipe" }
       );
       const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-      console.log(
-        `[GKE Node Migrator] Node pool ${nodePool} resized to ${numNodes} node(s) in ${elapsed}s`
-      );
+      logger(COMPONENT, `Node pool ${nodePool} resized to ${numNodes} node(s) in ${elapsed}s`);
       return true;
     } catch (error) {
       const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-      console.error(
-        `[GKE Node Migrator] Failed to resize node pool ${nodePool} to ${numNodes} after ${elapsed}s: ${error}`
-      );
+      logger(COMPONENT, `Failed to resize node pool ${nodePool} to ${numNodes} after ${elapsed}s: ${error}`, 'error');
       return false;
     }
   }
@@ -123,9 +109,7 @@ class GkeNodeMigrator {
     );
 
     if (!electedInstance) {
-      console.info(
-        `[GKE Node Migrator] No instance found with the name ${nodeName} on ${nodePool} node pool.`
-      );
+      logger(COMPONENT, `No instance found with the name ${nodeName} on ${nodePool} node pool.`, 'info');
       return false;
     }
     const instanceZone = electedInstance.instance
@@ -151,9 +135,7 @@ class GkeNodeMigrator {
                 --instances=${nodeName};
                 `);
     } catch (error) {
-      console.info(
-        `[GKE Node Migrator] Error while trying to remove ${nodeName} node on ${instanceGroup} instance group: ${error}`
-      );
+      logger(COMPONENT, `Error while trying to remove ${nodeName} node on ${instanceGroup} instance group: ${error}`, 'info');
       return false;
     }
     return true;
@@ -185,9 +167,7 @@ class GkeNodeMigrator {
         const instancesFormatted: Array<any> = JSON.parse(instances);
         instancesResponse = instancesFormatted;
       } catch (error) {
-        console.error(
-          `[GKE Node Migrator] Error while trying do get instance group information: ${error}`
-        );
+        logger(COMPONENT, `Error while trying do get instance group information: ${error}`, 'error');
       }
     }
     return instancesResponse;
@@ -210,9 +190,7 @@ class GkeNodeMigrator {
         result[i.name] = i.creationTimestamp ?? null;
       });
     } catch (error) {
-      console.error(
-        `[GKE Node Migrator] Error while getting creation dates for instances: ${error}`
-      );
+      logger(COMPONENT, `Error while getting creation dates for instances: ${error}`, 'error');
     }
     return result;
   }
