@@ -77,7 +77,7 @@ class MigratorOrchestrator {
     private migrateNode(node: ExpandedNodeScore){
         const ageInHours = this.getNodeAgeInHours(node.creationTimestamp);
         const nodePoolTo = node.nodePool === this.migrationConfig.lowNodePool ? this.migrationConfig.highNodePool : this.migrationConfig.lowNodePool;
-        console.log(`[Migrator Orchestrator] Migrating ${node.node} to ${nodePoolTo}`)
+        console.log(`[Migrator Orchestrator] Migrating ${node.node} with score ${node.score.toFixed(2)} to ${nodePoolTo}`)
         const start = Date.now();
         switch(nodePoolTo){
             case this.migrationConfig.lowNodePool: 
