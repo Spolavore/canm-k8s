@@ -1,12 +1,14 @@
 import { execSync } from 'child_process';
+import { logger } from '@/utils';
 
+const COMPONENT = 'GKE Credentials Generator';
 const REQUIRED_ENV_VARS = ['GKE_CLUSTER_NAME', 'GKE_REGION', 'GKE_PROJECT'] as const;
 
 function setCredentials(): void {
   const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
 
   if (missing.length > 0) {
-    console.error(`[gkeCredentialsGenerator] Missing required env vars: ${missing.join(', ')}`);
+    logger(COMPONENT, `Missing required env vars: ${missing.join(', ')}`, 'error');
     return;
   }
 

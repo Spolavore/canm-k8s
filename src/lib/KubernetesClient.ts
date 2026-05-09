@@ -2,6 +2,9 @@ import * as k8s from '@kubernetes/client-node';
 import * as gkeCredentialsGenerator from '@config/gkeCredentialsGenerator';
 import { execSync } from 'node:child_process';
 import { AvailableProviders } from '@/types';
+import { logger } from '@/utils';
+
+const COMPONENT = 'KubernetesClient';
 
 export type ProviderConfig = {
   clusterName: string;
@@ -20,7 +23,7 @@ export function loadProviderConfig(): ProviderConfig {
         project: process.env.GKE_PROJECT ?? '',
       };
     default:
-      console.log('[KubernetesClient] No external provider detected, will try using local kube config file');
+      logger(COMPONENT, 'No external provider detected, will try using local kube config file');
       return { clusterName: '', region: '', project: '' };
   }
 }
@@ -59,7 +62,7 @@ class KubernetesClient {
       execSync(`kubectl drain ${nodeName} ${gracefulPeriodCmd} ${forceCmd}`, { encoding: 'utf-8' });
       return true;
     } catch (error) {
-      console.error(`[KubernetesClient] Error while trying to drain ${nodeName}: ${error}`);
+      logger(COMPONENT, `Error while trying to drain ${nodeName}: ${error}`, 'error');
       return false;
     }
   }

@@ -5,6 +5,9 @@ import { comp } from "@/utils/math";
 import { ProviderConfig } from "@/lib/KubernetesClient";
 import { exit } from "process";
 import type { ExpandedNodeScore } from "@/types";
+import { logger } from "@/utils";
+
+const COMPONENT = "Migrator Orchestrator";
 
 class MigratorOrchestrator {
 
@@ -35,7 +38,7 @@ class MigratorOrchestrator {
         this.metrics = new MetricsAdapter(this.weights);
         this.selectNodeMigrator(providerConf);
         if(!this.nodeMigrator){
-            console.info("[Migrator Orchestrator] No provider was found, exiting...")
+            logger(COMPONENT, "No provider was found, exiting...", 'info');
             exit(1)
         }
     }
@@ -77,7 +80,7 @@ class MigratorOrchestrator {
     private migrateNode(node: ExpandedNodeScore){
         const ageInHours = this.getNodeAgeInHours(node.creationTimestamp);
         const nodePoolTo = node.nodePool === this.migrationConfig.lowNodePool ? this.migrationConfig.highNodePool : this.migrationConfig.lowNodePool;
-        console.log(`[Migrator Orchestrator] Migrating ${node.node} with score ${node.score.toFixed(2)} to ${nodePoolTo}`)
+        logger(COMPONENT, `Migrating ${node.node} with score ${node.score.toFixed(2)} to ${nodePoolTo}`);
         const start = Date.now();
         switch(nodePoolTo){
             case this.migrationConfig.lowNodePool: 
@@ -92,7 +95,7 @@ class MigratorOrchestrator {
                 this.nodeMigrator.removeNodeLowNodePool(node.node);
                 break
         }
-        console.log(`[Migrator Orchestrator] Migration finished in ${(Date.now() - start) / 1000}s`)
+        logger(COMPONENT, `Migration finished in ${(Date.now() - start) / 1000}s`);
     }
     private getNodeAgeInHours(creationTimestamp: string): number {
         return (Date.now() - new Date(creationTimestamp).getTime()) / (1000 * 60 * 60);

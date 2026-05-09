@@ -1,4 +1,7 @@
 import * as AxiosService from '@/services/axios.service';
+import { logger } from '@/utils';
+
+const COMPONENT = 'Prometheus Service';
 
 export type PrometheusResults = {
   metric: {
@@ -25,7 +28,7 @@ export async function instantQuery({ query, time_window }: QueryParams): Promise
     const response = await AxiosService.get(url) as any;
     return response?.result;
   } catch (error) {
-    console.error('[Prometheus Service]', error);
+    logger(COMPONENT, `${error}`, 'error');
     throw error;
   }
 }
