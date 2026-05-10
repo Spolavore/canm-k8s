@@ -9,7 +9,9 @@ const migrationConfig: MigrationConfig = {
   lowScoreThreshold: parseFloat(process.env.LOW_SCORE_THRESHOLD ?? '0.3'),
   highScoreThreshold: parseFloat(process.env.HIGH_SCORE_THRESHOLD ?? '0.7'),
   ...(process.env.MIGRATION_POLICY && { policy: process.env.MIGRATION_POLICY as MigrationConfig['policy'] }),
-  ...(process.env.CHECK_INTERVAL && { checkInterval: parseInt(process.env.CHECK_INTERVAL) }),
+  ...(process.env.CHECK_INTERVAL && { checkInterval: process.env.CHECK_INTERVAL }),
+  ...(process.env.HIGH_NODE_COOL_DOWN && { highNodeCoolDown: process.env.HIGH_NODE_COOL_DOWN }),
+  ...(process.env.LOW_NODE_COOL_DOWN && { lowNodeCoolDown: process.env.LOW_NODE_COOL_DOWN }),
 };
 
 const providerConfig = loadProviderConfig();
