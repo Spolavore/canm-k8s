@@ -6,6 +6,7 @@ import { ProviderConfig } from "@/lib/KubernetesClient";
 import { exit } from "process";
 import type { ExpandedNodeScore } from "@/types";
 import { logger } from "@/utils";
+import { convertToMs } from "@/utils/date";
 
 const COMPONENT = "Migrator Orchestrator";
 
@@ -26,7 +27,9 @@ class MigratorOrchestrator {
     constructor(migrationConfig: MigrationConfig, rawWeights: RawWeightsConfig, provider: AvailableProviders, providerConf: ProviderConfig){
         this.migrationConfig = {
             policy: 'prioritizeCost',
-            checkInterval: 60,
+            checkInterval: '1m',
+            highNodeCoolDown: '30m',
+            lowNodeCoolDown: '5m',
             ...migrationConfig,
         };
         this.provider = provider;
@@ -65,10 +68,23 @@ class MigratorOrchestrator {
         return expanded;
     }
 
+    private isNodeInCooldown(node: ExpandedNodeScore): boolean {
+        let cooldown = 0;
+
+        if(node.nodePool === this.migrationConfig.lowNodePool){
+            cooldown = convertToMs(this.migrationConfig.lowNodeCoolDown!);
+        }
+        else {
+            cooldown = convertToMs(this.migrationConfig.highNodeCoolDown!);
+        }
+
+        return (Date.now() - new Date(node.creationTimestamp).getTime())  < cooldown;
+    }
+
     private evaluateNodePool(nodesScore: ExpandedNodeScore[], threshold: number, cmp: ComparisonOperator){
         let actionEffectuated = false;
         for(const node of nodesScore){
-            if(comp(node.score, threshold, cmp)){
+            if(comp(node.score, threshold, cmp) && !this.isNodeInCooldown(node)){
                 this.migrateNode(node);
                 actionEffectuated = true;
                 break;
@@ -78,7 +94,6 @@ class MigratorOrchestrator {
         return actionEffectuated;
     }
     private migrateNode(node: ExpandedNodeScore){
-        const ageInHours = this.getNodeAgeInHours(node.creationTimestamp);
         const nodePoolTo = node.nodePool === this.migrationConfig.lowNodePool ? this.migrationConfig.highNodePool : this.migrationConfig.lowNodePool;
         logger(COMPONENT, `Migrating ${node.node} with score ${node.score.toFixed(2)} to ${nodePoolTo}`);
         const start = Date.now();
@@ -120,17 +135,17 @@ class MigratorOrchestrator {
         
         let hasChanged = false;
         switch(this.migrationConfig.policy){
-            case 'prioritizeCost': {
-                hasChanged = this.evaluateNodePool(nodesScoreLowNodePool, this.migrationConfig.lowScoreThreshold, 'lte');
+            case 'prioritizePerfomance': {
+                hasChanged = this.evaluateNodePool(nodesScoreLowNodePool, this.migrationConfig.highScoreThreshold, 'gte');
                 if(hasChanged) return;
-                this.evaluateNodePool(nodesScoreHighNodePool, this.migrationConfig.highScoreThreshold, 'gte');
+                this.evaluateNodePool(nodesScoreHighNodePool, this.migrationConfig.lowScoreThreshold, 'lte');
                 return;
             }
                 
-            case 'prioritizePerfomance': {
-                hasChanged = this.evaluateNodePool(nodesScoreHighNodePool, this.migrationConfig.highScoreThreshold, 'gte');
+            case 'prioritizeCost': {
+                hasChanged = this.evaluateNodePool(nodesScoreHighNodePool, this.migrationConfig.lowScoreThreshold, 'lte');
                 if(hasChanged) return;
-                this.evaluateNodePool(nodesScoreLowNodePool, this.migrationConfig.lowScoreThreshold, 'lte');
+                this.evaluateNodePool(nodesScoreLowNodePool, this.migrationConfig.highScoreThreshold, 'gte');
                return;                
             }
                 
@@ -140,7 +155,7 @@ class MigratorOrchestrator {
     async start() {
         const tick = async () => {  
             await this.evaluateCluster()            
-            setTimeout(tick, this.migrationConfig.checkInterval! * 1000);
+            setTimeout(tick, convertToMs(this.migrationConfig.checkInterval!));
         };
         await tick();
     }
