@@ -1,10 +1,11 @@
 import MetricsAdapter from "@components/MetricsAdapter";
 import GkeNodeMigrator from "@components/GkeNodeMigrator";
+import AuditLogger from "@components/AuditLogger";
 import { AvailableProviders, ComparisonOperator, MigrationConfig, RawWeightsConfig, WeightsConfig } from "@/types";
 import { comp } from "@/utils/math";
 import { ProviderConfig } from "@/lib/KubernetesClient";
 import { exit } from "process";
-import type { ExpandedNodeScore } from "@/types";
+import type { ExpandedNodeScore, MigrationDirection } from "@/types";
 import { logger } from "@/utils";
 import { convertToMs } from "@/utils/date";
 
@@ -18,6 +19,7 @@ class MigratorOrchestrator {
 
     private metrics: MetricsAdapter;
     private nodeMigrator!: GkeNodeMigrator;
+    private auditLogger: AuditLogger;
 
     private migrationConfig: MigrationConfig;
     private provider: AvailableProviders;
@@ -39,6 +41,7 @@ class MigratorOrchestrator {
             network: this.parseWeight(rawWeights.network, this.DEFAULT_NETWORK_WEIGHT),
         };
         this.metrics = new MetricsAdapter(this.weights);
+        this.auditLogger = new AuditLogger();
         this.selectNodeMigrator(providerConf);
         if(!this.nodeMigrator){
             logger(COMPONENT, "No provider was found, exiting...", 'info');
@@ -95,25 +98,36 @@ class MigratorOrchestrator {
     }
     private migrateNode(node: ExpandedNodeScore){
         const nodePoolTo = node.nodePool === this.migrationConfig.lowNodePool ? this.migrationConfig.highNodePool : this.migrationConfig.lowNodePool;
+        const direction: MigrationDirection = nodePoolTo === this.migrationConfig.lowNodePool ? 'high->low' : 'low->high';
         logger(COMPONENT, `Migrating ${node.node} with score ${node.score.toFixed(2)} to ${nodePoolTo}`);
         const start = Date.now();
+        let success = false;
         switch(nodePoolTo){
-            case this.migrationConfig.lowNodePool: 
-                this.nodeMigrator.addNodeLowNodePool();
-                this.nodeMigrator.drain(node.node, 60, true);
-                this.nodeMigrator.removeNodeHighNodePool(node.node);
-                break
+            case this.migrationConfig.lowNodePool:
+                success = this.nodeMigrator.addNodeLowNodePool()
+                    && this.nodeMigrator.drain(node.node, 60, true)
+                    && this.nodeMigrator.removeNodeHighNodePool(node.node);
+                break;
 
             case this.migrationConfig.highNodePool:
-                this.nodeMigrator.addNodeHighNodePool();
-                this.nodeMigrator.drain(node.node, 60, true);
-                this.nodeMigrator.removeNodeLowNodePool(node.node);
-                break
+                success = this.nodeMigrator.addNodeHighNodePool()
+                    && this.nodeMigrator.drain(node.node, 60, true)
+                    && this.nodeMigrator.removeNodeLowNodePool(node.node);
+                break;
         }
-        logger(COMPONENT, `Migration finished in ${(Date.now() - start) / 1000}s`);
-    }
-    private getNodeAgeInHours(creationTimestamp: string): number {
-        return (Date.now() - new Date(creationTimestamp).getTime()) / (1000 * 60 * 60);
+        const duration_ms = Date.now() - start;
+        logger(COMPONENT, `Migration finished in ${(duration_ms / 1000).toFixed(1)}s`);
+        this.auditLogger.log({
+            timestamp: new Date(start).toISOString(),
+            duration_ms,
+            direction,
+            node: node.node,
+            score: node.score,
+            from_pool: node.nodePool,
+            to_pool: nodePoolTo,
+            policy: this.migrationConfig.policy!,
+            success,
+        });
     }
 
     private sortByScore(nodes: ExpandedNodeScore[], order: 'asc' | 'desc'): ExpandedNodeScore[] {
@@ -135,7 +149,7 @@ class MigratorOrchestrator {
         
         let hasChanged = false;
         switch(this.migrationConfig.policy){
-            case 'prioritizePerfomance': {
+            case 'prioritizePerformance': {
                 hasChanged = this.evaluateNodePool(nodesScoreLowNodePool, this.migrationConfig.highScoreThreshold, 'gte');
                 if(hasChanged) return;
                 this.evaluateNodePool(nodesScoreHighNodePool, this.migrationConfig.lowScoreThreshold, 'lte');
