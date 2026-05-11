@@ -1,6 +1,6 @@
 export type AvailableProviders = 'gke' | null;
 export type ComparisonOperator = 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
-export type MigrationPolicies = 'prioritizeCost' | 'prioritizePerfomance';
+export type MigrationPolicies = 'prioritizeCost' | 'prioritizePerformance';
 
 export type RawWeightsConfig = {
     cpu?: string;
@@ -35,4 +35,18 @@ export type MigrationConfig = {
     checkInterval?: string,
     highNodeCoolDown?: string,
     lowNodeCoolDown?: string
+}
+
+export type MigrationDirection = 'high->low' | 'low->high';
+
+export type AuditLogEntry = {
+    timestamp: string;
+    duration_ms: number;
+    direction: MigrationDirection;
+    node: string;
+    score: number;
+    from_pool: string;
+    to_pool: string;
+    policy: MigrationPolicies;
+    success: boolean;
 }
