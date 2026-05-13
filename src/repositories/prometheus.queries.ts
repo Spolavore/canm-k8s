@@ -8,10 +8,6 @@ export const CPU_USAGE_QUERY = [
   `* 100`,
 ].join(' ');
 
-export const NETWORK_RECEIVED_BYTES_QUERY =
-  `sum(rate(container_network_receive_bytes_total{job="${PROMETHEUS_JOB}"}[\${time_window}])) by (node)`;
-
-
 export const MEMORY_USAGE_QUERY = [
   `(sum(container_memory_working_set_bytes{job="${PROMETHEUS_JOB}", id="/"}) by (node)`,
   `/`,

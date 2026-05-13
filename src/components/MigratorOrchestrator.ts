@@ -15,7 +15,6 @@ class MigratorOrchestrator {
 
     private DEFAULT_CPU_WEIGHT = 0.60;
     private DEFAULT_MEMORY_WEIGHT = 0.3;
-    private DEFAULT_NETWORK_WEIGHT = 0.1;
 
     private metrics: MetricsAdapter;
     private nodeMigrator!: GkeNodeMigrator;
@@ -38,7 +37,6 @@ class MigratorOrchestrator {
         this.weights = {
             cpu: this.parseWeight(rawWeights.cpu, this.DEFAULT_CPU_WEIGHT),
             memory: this.parseWeight(rawWeights.memory, this.DEFAULT_MEMORY_WEIGHT),
-            network: this.parseWeight(rawWeights.network, this.DEFAULT_NETWORK_WEIGHT),
         };
         this.metrics = new MetricsAdapter(this.weights);
         this.auditLogger = new AuditLogger();
@@ -87,7 +85,11 @@ class MigratorOrchestrator {
     private evaluateNodePool(nodesScore: ExpandedNodeScore[], threshold: number, cmp: ComparisonOperator){
         let actionEffectuated = false;
         for(const node of nodesScore){
-            if(comp(node.score, threshold, cmp) && !this.isNodeInCooldown(node)){
+            if(this.isNodeInCooldown(node)){
+                logger(COMPONENT, `${node.node} of ${node.nodePool} is in cooldown: ${node.creationTimestamp}`)
+                continue;
+            }
+            if(comp(node.score, threshold, cmp)){
                 this.migrateNode(node);
                 actionEffectuated = true;
                 break;
@@ -116,7 +118,11 @@ class MigratorOrchestrator {
                 break;
         }
         const duration_ms = Date.now() - start;
-        logger(COMPONENT, `Migration finished in ${(duration_ms / 1000).toFixed(1)}s`);
+        if(success){
+            logger(COMPONENT, `Migration finished in ${(duration_ms / 1000).toFixed(1)}s`);
+        } else {
+            logger(COMPONENT, `Migration of ${node.node} failed after ${(duration_ms / 1000).toFixed(1)}s`, 'error');
+        }
         this.auditLogger.log({
             timestamp: new Date(start).toISOString(),
             duration_ms,
@@ -136,6 +142,8 @@ class MigratorOrchestrator {
     }
 
     private async evaluateCluster(): Promise<any>{
+        logger(COMPONENT, `Iniciating cluster evaluation ${new Date().toISOString()}`);
+
         const [nodesScoreLowNodePool, nodesScoreHighNodePool] = await Promise.all([
             this.getNodesScore('10m', 'low'),
             this.getNodesScore('1h', 'high'),
@@ -153,22 +161,29 @@ class MigratorOrchestrator {
                 hasChanged = this.evaluateNodePool(nodesScoreLowNodePool, this.migrationConfig.highScoreThreshold, 'gte');
                 if(hasChanged) return;
                 this.evaluateNodePool(nodesScoreHighNodePool, this.migrationConfig.lowScoreThreshold, 'lte');
-                return;
+                break;
             }
                 
             case 'prioritizeCost': {
                 hasChanged = this.evaluateNodePool(nodesScoreHighNodePool, this.migrationConfig.lowScoreThreshold, 'lte');
                 if(hasChanged) return;
                 this.evaluateNodePool(nodesScoreLowNodePool, this.migrationConfig.highScoreThreshold, 'gte');
-               return;                
-            }
-                
+               break;                
+            }        
+        }
+        
+        if(!hasChanged) {
+            logger(COMPONENT, 'No action was effected on this cicle');
         }
     }
 
     async start() {
-        const tick = async () => {  
-            await this.evaluateCluster()            
+        const tick = async () => {
+            try {
+                await this.evaluateCluster();
+            } catch(err) {
+                logger(COMPONENT, `Unexpected error during cluster evaluation: ${err}`, 'error');
+            }
             setTimeout(tick, convertToMs(this.migrationConfig.checkInterval!));
         };
         await tick();

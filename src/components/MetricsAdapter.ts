@@ -1,6 +1,6 @@
 import { instantQuery, PrometheusResults } from '@/services/prometheus.service';
-import { CPU_USAGE_QUERY, NETWORK_RECEIVED_BYTES_QUERY, MEMORY_USAGE_QUERY } from '@/repositories/prometheus.queries';
-import { ByteUnits, convertionCoefficients, normalize } from '@/utils';
+import { CPU_USAGE_QUERY, MEMORY_USAGE_QUERY } from '@/repositories/prometheus.queries';
+import { normalize } from '@/utils';
 import KubernetesClient from '@/lib/KubernetesClient';
 import type { WeightsConfig } from '@/types';
 import type { NodeScore } from '@/types';
@@ -10,13 +10,11 @@ type AvailableReductions = 'max' | 'min' | 'avg' | 'sum';
 class MetricsAdapter {
   private cpu_weight: number
   private memory_weight: number
-  private network_weight: number
 
   constructor(weights: WeightsConfig){
-    const [cpu, memory, network] = normalize([weights.cpu, weights.memory, weights.network]);
+    const [cpu, memory] = normalize([weights.cpu, weights.memory]);
     this.cpu_weight = cpu;
     this.memory_weight = memory;
-    this.network_weight = network;
   }
 
   async getNodesScore(time_window: string = '1h'): Promise<NodeScore[]>{
@@ -26,11 +24,10 @@ class MetricsAdapter {
       nodesScore[n] = -1
     })
 
-    const [cpuMetrics, memoryMetrics, networkMetrics] = await Promise.all([
+    const [cpuMetrics, memoryMetrics] = await Promise.all([
       this.getNodesCpuUsage(time_window),
       this.getNodesMemoryUsage(),
-      this.getNodesNetworkReceivedBytes(time_window, undefined, 'mb')
-    ]) as [PrometheusResults[], PrometheusResults[], PrometheusResults[]]
+    ]) as [PrometheusResults[], PrometheusResults[]]
 
     cpuMetrics.forEach(cm => {
       nodesScore[cm.metric.node] = Number(cm.value[1]) * this.cpu_weight;
@@ -39,11 +36,7 @@ class MetricsAdapter {
     memoryMetrics.forEach(mm => {
       nodesScore[mm.metric.node] += Number(mm.value[1]) * this.memory_weight;
     })
-
-    networkMetrics.forEach(nm => {
-      nodesScore[nm.metric.node] += Number(nm.value[1]) * this.network_weight;
-    })
-
+    
     return Object.entries(nodesScore).map(([node, score]) => ({ node, score }));
   }
   /*
@@ -61,23 +54,6 @@ class MetricsAdapter {
 
     return results;
   }
-  /*
-  * Returns the receive bytes 
-  */
-  async getNodesNetworkReceivedBytes(
-    time_window: string,
-    reduction?: AvailableReductions,
-    unit: ByteUnits = 'b',
-  ): Promise<PrometheusResults[] | PrometheusResults> {
-    const results = await instantQuery({ query: NETWORK_RECEIVED_BYTES_QUERY + `/ ${convertionCoefficients[unit]}` , time_window });
-
-    if (results && reduction) {
-      return this.reduct(results, reduction);
-    }
-
-    return results;
-  }
-
   /*
   * Returns the Memory use of each node in the cluster in percentage
   */

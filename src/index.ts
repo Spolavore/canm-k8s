@@ -17,7 +17,7 @@ const migrationConfig: MigrationConfig = {
 const providerConfig = loadProviderConfig();
 const migrator = new MigratorOrchestrator(
   migrationConfig,
-  { cpu: process.env.CPU_WEIGHT, memory: process.env.MEMORY_WEIGHT, network: process.env.NETWORK_WEIGHT },
+  { cpu: process.env.CPU_WEIGHT, memory: process.env.MEMORY_WEIGHT },
   'gke',
   providerConfig
 );

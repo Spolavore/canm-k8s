@@ -117,7 +117,7 @@ class GkeNodeMigrator {
       .split("/")[0];
     return this.removeMigInstance(
       nodeName,
-      this.getInstanceGroup(nodePool),
+      this.getInstanceGroup(nodePool)[0],
       instanceZone
     );
   }
@@ -134,6 +134,12 @@ class GkeNodeMigrator {
                 --project=${this.k8sClient.getProject()} \
                 --instances=${nodeName};
                 `);
+      execSync(`
+          gcloud compute instance-groups managed wait-until-stable \
+          ${instanceGroup} \
+          --zone=${zone} \
+          --project=${this.k8sClient.getProject()}
+          `)
     } catch (error) {
       logger(COMPONENT, `Error while trying to remove ${nodeName} node on ${instanceGroup} instance group: ${error}`, 'info');
       return false;
@@ -196,9 +202,7 @@ class GkeNodeMigrator {
   }
 
   getNodePoolCount(nodePool: string): number {
-    const nodePools = this.getClusterNodeInfo();
-    const np = nodePools.find((n) => n.name === nodePool);
-    return np?.initialNodeCount ?? 0;
+    return this.getNodesFromPool(nodePool).length;
   }
 
   expandNodesInfo(nodes: NodeScore[]): ExpandedNodeScore[]{
