@@ -1,0 +1,184 @@
+digraph ClassDiagram {
+    rankdir=TB
+    graph [
+        fontname="Helvetica",
+        splines=polyline,
+        nodesep=0.9,
+        ranksep=1.4,
+        bgcolor="white",
+        pad="0.6",
+        label="CANM – Diagrama de Classes",
+        labelloc="t",
+        fontsize=18,
+        fontcolor="#222222"
+    ]
+    node [fontname="Helvetica", fontsize=10, shape=plaintext]
+    edge [fontname="Helvetica", fontsize=9, color="#444444"]
+
+    // ── Classes principais ───────────────────────────────────
+
+    MigratorOrchestrator [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+            <TR><TD BGCOLOR="#2E75B6" ALIGN="CENTER" WIDTH="290"><FONT COLOR="white"><B>MigratorOrchestrator</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                - migrationConfig : MigrationConfig<BR/>
+                - provider : AvailableProviders<BR/>
+                - weights : WeightsConfig<BR/>
+                - metrics : MetricsAdapter<BR/>
+                - nodeMigrator : GkeNodeMigrator<BR/>
+                - auditLogger : AuditLogger
+            </TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                + start() : void<BR/>
+                - evaluateCluster() : void<BR/>
+                - evaluateNodePool(...) : boolean<BR/>
+                - migrateNode(node) : void<BR/>
+                - isNodeInCooldown(node) : boolean<BR/>
+                - sortByScore(nodes, order) : ExpandedNodeScore[]
+            </TD></TR>
+        </TABLE>
+    >]
+
+    MetricsAdapter [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+            <TR><TD BGCOLOR="#2E75B6" ALIGN="CENTER" WIDTH="270"><FONT COLOR="white"><B>MetricsAdapter</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                - cpu_weight : number<BR/>
+                - memory_weight : number<BR/>
+                - network_weight : number
+            </TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                + getNodesScore(timeWindow) : NodeScore[]<BR/>
+                + getNodesCpuUsage(timeWindow, reduction)<BR/>
+                + getNodesMemoryUsage(reduction)<BR/>
+                + getNodesNetworkReceivedBytes(...)
+            </TD></TR>
+        </TABLE>
+    >]
+
+    GkeNodeMigrator [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+            <TR><TD BGCOLOR="#2E75B6" ALIGN="CENTER" WIDTH="280"><FONT COLOR="white"><B>GkeNodeMigrator</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                - k8sClient : KubernetesClient<BR/>
+                - hNodePool : string<BR/>
+                - lNodePool : string
+            </TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                + drain(name, period, force) : boolean<BR/>
+                + addNodeHighNodePool() : boolean<BR/>
+                + addNodeLowNodePool() : boolean<BR/>
+                + removeNodeHighNodePool(name) : boolean<BR/>
+                + removeNodeLowNodePool(name) : boolean<BR/>
+                + expandNodesInfo(nodes) : ExpandedNodeScore[]<BR/>
+                + getNodePoolCount(pool) : number
+            </TD></TR>
+        </TABLE>
+    >]
+
+    KubernetesClient [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+            <TR><TD BGCOLOR="#2E75B6" ALIGN="CENTER" WIDTH="270"><FONT COLOR="white"><B>KubernetesClient</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                - kc : KubeConfig<BR/>
+                - clusterName : string<BR/>
+                - region : string<BR/>
+                - project : string
+            </TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                + drain(name, period, force) : boolean<BR/>
+                + getNodeNames() : string[]  {static}<BR/>
+                + getClusterName() : string<BR/>
+                + getRegion() : string<BR/>
+                + getProject() : string<BR/>
+                + getCoreV1Api() : CoreV1Api<BR/>
+                + getAppsV1Api() : AppsV1Api
+            </TD></TR>
+        </TABLE>
+    >]
+
+    AuditLogger [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+            <TR><TD BGCOLOR="#2E75B6" ALIGN="CENTER" WIDTH="240"><FONT COLOR="white"><B>AuditLogger</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                - filePath : string
+            </TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                + log(entry : AuditLogEntry) : void
+            </TD></TR>
+        </TABLE>
+    >]
+
+    PrometheusService [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+            <TR><TD BGCOLOR="#C55A11" ALIGN="CENTER" WIDTH="240"><FONT COLOR="white">«module»<BR/><B>PrometheusService</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT"> </TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                + instantQuery(params) : PrometheusResults[]
+            </TD></TR>
+        </TABLE>
+    >]
+
+    // ── Tipos ────────────────────────────────────────────────
+
+    NodeScore [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+            <TR><TD BGCOLOR="#548235" ALIGN="CENTER" WIDTH="210"><FONT COLOR="white">«type»<BR/><B>NodeScore</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                + node : string<BR/>
+                + score : number
+            </TD></TR>
+        </TABLE>
+    >]
+
+    ExpandedNodeScore [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+            <TR><TD BGCOLOR="#548235" ALIGN="CENTER" WIDTH="210"><FONT COLOR="white">«type»<BR/><B>ExpandedNodeScore</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                + node : string<BR/>
+                + score : number<BR/>
+                + nodePool : string<BR/>
+                + creationTimestamp : string
+            </TD></TR>
+        </TABLE>
+    >]
+
+    AuditLogEntry [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white">
+            <TR><TD BGCOLOR="#548235" ALIGN="CENTER" WIDTH="220"><FONT COLOR="white">«type»<BR/><B>AuditLogEntry</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT" BALIGN="LEFT">
+                + timestamp : string<BR/>
+                + duration_ms : number<BR/>
+                + direction : MigrationDirection<BR/>
+                + node : string<BR/>
+                + score : number<BR/>
+                + from_pool : string<BR/>
+                + to_pool : string<BR/>
+                + policy : MigrationPolicies<BR/>
+                + success : boolean
+            </TD></TR>
+        </TABLE>
+    >]
+
+    // ── Relações ─────────────────────────────────────────────
+
+    // Composição (diamante preenchido no pai)
+    MigratorOrchestrator -> MetricsAdapter  [arrowhead=none, arrowtail=diamond, dir=both, label="  cria  "]
+    MigratorOrchestrator -> GkeNodeMigrator [arrowhead=none, arrowtail=diamond, dir=both, label="  cria  "]
+    MigratorOrchestrator -> AuditLogger     [arrowhead=none, arrowtail=diamond, dir=both, label="  cria  "]
+    GkeNodeMigrator -> KubernetesClient     [arrowhead=none, arrowtail=diamond, dir=both, label="  cria  "]
+
+    // Dependências (tracejado)
+    MetricsAdapter -> KubernetesClient  [style=dashed, arrowhead=open, label="  usa (static)  ", constraint=false]
+    MetricsAdapter -> PrometheusService [style=dashed, arrowhead=open, label="  consulta  "]
+    MetricsAdapter -> NodeScore         [style=dashed, arrowhead=open, label="  retorna  ", constraint=false]
+    GkeNodeMigrator -> ExpandedNodeScore [style=dashed, arrowhead=open, label="  retorna  ", constraint=false]
+    MigratorOrchestrator -> ExpandedNodeScore [style=dashed, arrowhead=open, label="  processa  ", constraint=false]
+    AuditLogger -> AuditLogEntry        [style=dashed, arrowhead=open, label="  serializa  "]
+
+    // ── Layout ───────────────────────────────────────────────
+    { rank=source; MigratorOrchestrator }
+    { rank=same;   MetricsAdapter; GkeNodeMigrator; AuditLogger }
+    { rank=same;   KubernetesClient; PrometheusService }
+    { rank=same;   NodeScore; ExpandedNodeScore; AuditLogEntry }
+}
