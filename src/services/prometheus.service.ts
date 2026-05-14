@@ -13,16 +13,16 @@ export type PrometheusResults = {
 
 type QueryParams = {
   query: string;
-  time_window?: string;
+  timeWindow?: string;
 };
 
 const promApi = process.env.PROMETHEUS_API_URL;
 
-export async function instantQuery({ query, time_window }: QueryParams): Promise<PrometheusResults[]> {
+export async function instantQuery({ query, timeWindow }: QueryParams): Promise<PrometheusResults[]> {
   try {
     let expr = query;
-    if(time_window){
-     expr = query.replace(/\$\{time_window\}/g, time_window);
+    if(timeWindow){
+     expr = query.replace(/\$\{time_window\}/g, timeWindow);
     }
     const url = `${promApi}/api/v1/query?query=${encodeURIComponent(expr)}`;
     const response = await AxiosService.get(url) as any;

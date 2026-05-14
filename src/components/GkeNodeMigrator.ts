@@ -134,6 +134,7 @@ class GkeNodeMigrator {
                 --project=${this.k8sClient.getProject()} \
                 --instances=${nodeName};
                 `);
+      logger(COMPONENT, 'Wating for instace group to stable...')
       execSync(`
           gcloud compute instance-groups managed wait-until-stable \
           ${instanceGroup} \

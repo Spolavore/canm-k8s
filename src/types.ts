@@ -39,12 +39,12 @@ export type MigrationDirection = 'high->low' | 'low->high';
 
 export type AuditLogEntry = {
     timestamp: string;
-    duration_ms: number;
+    durationMs: number;
     direction: MigrationDirection;
     node: string;
     score: number;
-    from_pool: string;
-    to_pool: string;
+    fromPool: string;
+    toPool: string;
     policy: MigrationPolicies;
     success: boolean;
 }

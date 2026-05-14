@@ -8,16 +8,16 @@ import type { NodeScore } from '@/types';
 type AvailableReductions = 'max' | 'min' | 'avg' | 'sum';
 
 class MetricsAdapter {
-  private cpu_weight: number
-  private memory_weight: number
+  private cpuWeight: number
+  private memoryWeight: number
 
   constructor(weights: WeightsConfig){
     const [cpu, memory] = normalize([weights.cpu, weights.memory]);
-    this.cpu_weight = cpu;
-    this.memory_weight = memory;
+    this.cpuWeight = cpu;
+    this.memoryWeight = memory;
   }
 
-  async getNodesScore(time_window: string = '1h'): Promise<NodeScore[]>{
+  async getNodesScore(timeWindow: string = '1h'): Promise<NodeScore[]>{
     const nodesScore: Record<string, number> = {};
     const nodes = await KubernetesClient.getNodeNames();
     nodes.forEach(n => {
@@ -25,28 +25,28 @@ class MetricsAdapter {
     })
 
     const [cpuMetrics, memoryMetrics] = await Promise.all([
-      this.getNodesCpuUsage(time_window),
+      this.getNodesCpuUsage(timeWindow),
       this.getNodesMemoryUsage(),
     ]) as [PrometheusResults[], PrometheusResults[]]
 
     cpuMetrics.forEach(cm => {
-      nodesScore[cm.metric.node] = Number(cm.value[1]) * this.cpu_weight;
+      nodesScore[cm.metric.node] = Number(cm.value[1]) * this.cpuWeight;
     })
 
     memoryMetrics.forEach(mm => {
-      nodesScore[mm.metric.node] += Number(mm.value[1]) * this.memory_weight;
+      nodesScore[mm.metric.node] += Number(mm.value[1]) * this.memoryWeight;
     })
     
-    return Object.entries(nodesScore).map(([node, score]) => ({ node, score }));
+    return Object.entries(nodesScore).map(([node, score]) => ({ node, score: Number((score / 100).toFixed(3)) }));
   }
   /*
   * Returns the CPU use of each node in the cluster in percentage
   */
   async getNodesCpuUsage(
-    time_window: string,
+    timeWindow: string,
     reduction?: AvailableReductions
   ): Promise<PrometheusResults[] | PrometheusResults> {
-    const results = await instantQuery({ query: CPU_USAGE_QUERY, time_window });
+    const results = await instantQuery({ query: CPU_USAGE_QUERY, timeWindow });
 
     if (results && reduction) {
       return this.reduct(results, reduction);
