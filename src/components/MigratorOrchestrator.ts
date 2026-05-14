@@ -23,7 +23,7 @@ class MigratorOrchestrator {
     private migrationConfig: MigrationConfig;
     private provider: AvailableProviders;
     private weights: WeightsConfig;
-
+    private showDecisionsLogs: boolean // Debug env variable.
 
     constructor(migrationConfig: MigrationConfig, rawWeights: RawWeightsConfig, provider: AvailableProviders, providerConf: ProviderConfig){
         this.migrationConfig = {
@@ -45,6 +45,7 @@ class MigratorOrchestrator {
             logger(COMPONENT, "No provider was found, exiting...", 'info');
             exit(1)
         }
+        this.showDecisionsLogs = process.env.SHOW_DECISIONS_LOGS === "TRUE";
     }
     
     private selectNodeMigrator (config: ProviderConfig) {
@@ -86,14 +87,21 @@ class MigratorOrchestrator {
         let actionEffectuated = false;
         for(const node of nodesScore){
             if(this.isNodeInCooldown(node)){
-                logger(COMPONENT, `${node.node} of ${node.nodePool} is in cooldown: ${node.creationTimestamp}`)
+                logger(COMPONENT, `Node ${node.node} of ${node.nodePool} is in cooldown: ${node.creationTimestamp}`, 'info', this.showDecisionsLogs);
                 continue;
             }
             if(comp(node.score, threshold, cmp)){
+                logger(COMPONENT, 
+                    `Node ${node.node} is a candidate to be migrated to ${node.nodePool === this.migrationConfig.lowNodePool ? 'high node pool': 'low node pool'} with ${node.score} score `, 
+                    'info', this.showDecisionsLogs);
                 this.migrateNode(node);
                 actionEffectuated = true;
                 break;
             };
+
+            logger(COMPONENT, 
+                `Node ${node.node} didn't achieved the necessary score to migrate to ${node.nodePool === this.migrationConfig.lowNodePool ? 'high node pool': 'low node pool'} with ${node.score} score `, 
+                'info', this.showDecisionsLogs);
         }
 
         return actionEffectuated;
@@ -117,20 +125,20 @@ class MigratorOrchestrator {
                     && this.nodeMigrator.removeNodeLowNodePool(node.node);
                 break;
         }
-        const duration_ms = Date.now() - start;
+        const durationMs = Date.now() - start;
         if(success){
-            logger(COMPONENT, `Migration finished in ${(duration_ms / 1000).toFixed(1)}s`);
+            logger(COMPONENT, `Migration finished in ${(durationMs / 1000).toFixed(1)}s`);
         } else {
-            logger(COMPONENT, `Migration of ${node.node} failed after ${(duration_ms / 1000).toFixed(1)}s`, 'error');
+            logger(COMPONENT, `Migration of ${node.node} failed after ${(durationMs / 1000).toFixed(1)}s`, 'error');
         }
         this.auditLogger.log({
             timestamp: new Date(start).toISOString(),
-            duration_ms,
+            durationMs,
             direction,
             node: node.node,
             score: node.score,
-            from_pool: node.nodePool,
-            to_pool: nodePoolTo,
+            fromPool: node.nodePool,
+            toPool: nodePoolTo,
             policy: this.migrationConfig.policy!,
             success,
         });
@@ -143,6 +151,9 @@ class MigratorOrchestrator {
 
     private async evaluateCluster(): Promise<any>{
         logger(COMPONENT, `Iniciating cluster evaluation ${new Date().toISOString()}`);
+        logger(COMPONENT,
+             `\nConfig:\nLow threshold: ${this.migrationConfig.lowScoreThreshold}\nLow cooldown: ${this.migrationConfig.lowNodeCoolDown}\nHigh threshold: ${this.migrationConfig.highScoreThreshold}\nHigh cooldown: ${this.migrationConfig.highNodeCoolDown}\nPolicy: ${this.migrationConfig.policy}`,
+             'info', this.showDecisionsLogs);
 
         const [nodesScoreLowNodePool, nodesScoreHighNodePool] = await Promise.all([
             this.getNodesScore('10m', 'low'),
