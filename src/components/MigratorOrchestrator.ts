@@ -1,7 +1,7 @@
 import MetricsAdapter from "@components/MetricsAdapter";
 import GkeNodeMigrator from "@components/GkeNodeMigrator";
 import AuditLogger from "@components/AuditLogger";
-import { AvailableProviders, ComparisonOperator, MigrationConfig, RawWeightsConfig, WeightsConfig } from "@/types";
+import { AvailableProviders, ComparisonOperator, MigrationConfig, RawWeightsConfig, WeightsConfig, MigrationStages } from "@/types";
 import { comp } from "@/utils/math";
 import { ProviderConfig } from "@/lib/KubernetesClient";
 import { exit } from "process";
@@ -109,18 +109,62 @@ class MigratorOrchestrator {
         return actionEffectuated;
     }
 
+    private compensate(direction: MigrationDirection, stage: MigrationStages, currentNode: ExpandedNodeScore, nodeCreated?: string){
+        logger(COMPONENT, `Iniciating compensating process for stage: ${stage}`);
+        switch(stage){
+            case "draining":
+                if (!nodeCreated) {
+                    logger(COMPONENT, `Cannot compensate draining without nodeCreated reference`, 'error');
+                    return;
+                }
+                try {
+                    this.nodeMigrator.uncordon(currentNode.node);
+                } catch (error) {
+                    logger(COMPONENT, `Couldn't uncordon source node ${currentNode.node} during draining compensation: ${error}. Node will remain cordoned until next reconciliation tick.`, 'error');
+                }
+                try {
+                    direction === "high->low"
+                        ?
+                        this.nodeMigrator.removeNodeLowNodePool(nodeCreated)
+                        :
+                        this.nodeMigrator.removeNodeHighNodePool(nodeCreated);
+                } catch (error) {
+                    logger(COMPONENT, `Couldn't compensate draining failure: removal of orphan node ${nodeCreated} (direction ${direction}, source ${currentNode.node}) failed: ${error}. Marking ${nodeCreated} as pending-removal for next reconciliation tick.`, 'error');
+                    this.nodeMigrator.annotateNode(nodeCreated, "STATE", 'pending-removal');
+                    this.nodeMigrator.annotateNode(nodeCreated, "TARGET_POOL", direction === "high->low" ? this.migrationConfig.lowNodePool : this.migrationConfig.highNodePool);
+                }
+                break;
+            case "removing":
+                // Annotating for next tick reconciliation
+                this.nodeMigrator.annotateNode(currentNode.node, "STATE", 'pending-removal');
+                break
+            default:
+                logger(COMPONENT, `No action implemented for ${stage} compensate proccess`);
+                return;
+                
+        }
+    };
+
     private executeMigrationPipeline(node: ExpandedNodeScore, direction: MigrationDirection): MigrationPipelineResponse{ 
+        let newNode = null;
         try {
-            direction == "high->low" ? this.nodeMigrator.addNodeLowNodePool() : this.nodeMigrator.addNodeHighNodePool();
+           newNode =  direction == "high->low" 
+           ?
+           this.nodeMigrator.addNodeLowNodePool() 
+           : 
+           this.nodeMigrator.addNodeHighNodePool();
+           this.nodeMigrator.annotateNode(newNode!, "STATE", "created");
         } catch (error) {
             logger(COMPONENT, `Error on adding node: ${error}`);    
             return {status: 'failed', stage: 'addition'};
         }
 
-        try {    
+        try {
+            this.nodeMigrator.annotateNode(newNode!, "STATE", "draining");
             this.nodeMigrator.drain(node.node, 60, true)
         } catch (error) {
-            logger(COMPONENT, `Error on adding node ${node.node}: ${error}`);    
+            logger(COMPONENT, `Error on draining node ${node.node}: ${error}`);
+            this.compensate(direction, "draining", node, newNode!);
             return {status: 'failed', stage: 'draining'};
         }
 
@@ -128,9 +172,10 @@ class MigratorOrchestrator {
             direction == "high->low" ? this.nodeMigrator.removeNodeHighNodePool(node.node) : this.nodeMigrator.removeNodeLowNodePool(node.node);
         } catch (error) {
             logger(COMPONENT, `Error on removing node ${node.node}: ${error}`);    
+            this.compensate(direction,"removing", node);
             return {status: 'failed', stage: 'removing'};
         }
-        
+        this.nodeMigrator.annotateNode(newNode!, "STATE", "managed");
         return {status: 'passed', stage: 'conclued'};
     }
 

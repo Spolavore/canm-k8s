@@ -102,3 +102,4 @@ Esperado em runtime:
 
 Sem essas variáveis o CANM cai no fallback "tenta usar `~/.kube/config`",
 o que normalmente não é o desejado em ambiente containerizado.
+

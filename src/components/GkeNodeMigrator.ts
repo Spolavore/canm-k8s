@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import KubernetesClient from "@lib/KubernetesClient";
 import type { ProviderConfig } from "@lib/KubernetesClient";
 import type { NodeScore, ExpandedNodeScore } from "@/types";
-import { logger, generateHash } from "@/utils";
+import { logger, generateHash, ANNOTATION } from "@/utils";
 
 const COMPONENT = "GKE Node Migrator";
 
@@ -30,26 +30,44 @@ class GkeNodeMigrator {
 
   drain(nodeName: string, gracefulPeriod?: number, force?: boolean): boolean {
     logger(COMPONENT, `Draning ${nodeName}...`);
-    return this.k8sClient.drain(nodeName, gracefulPeriod, force);
+    const drainSucced =  this.k8sClient.drain(nodeName, gracefulPeriod, force);
+    if(!drainSucced) throw new Error(`Error on draining node ${nodeName}`);
+    return drainSucced;
   }
-  addNodeHighNodePool(): string | null {
+
+  uncordon(nodeName: string): boolean {
+    logger(COMPONENT, `Uncordoning ${nodeName}...`);
+    const uncordonSucced = this.k8sClient.uncordon(nodeName);
+    if(!uncordonSucced) throw new Error(`Error on uncordoning node ${nodeName}`);
+    return uncordonSucced;
+  }
+
+  addNodeHighNodePool(): string {
     logger(COMPONENT, `Adding node on high demand node pool: ${this.hNodePool}`);
-    return this.addMigInstance(this.hNodePool);
+    const nodeName = this.addMigInstance(this.hNodePool);
+    if(nodeName === null) throw new Error(`Error while trying to add node in highNodePool`);
+    return nodeName;
   }
 
   addNodeLowNodePool(): string | null {
     logger(COMPONENT, `Adding node on low demand node pool: ${this.lNodePool}`);
-    return this.addMigInstance(this.lNodePool);
+    const nodeName = this.addMigInstance(this.lNodePool);
+    if(nodeName === null) throw new Error(`Error while trying to add node in lowNodePool`);
+    return nodeName;
   }
 
   removeNodeHighNodePool(nodeName: string): boolean {
     logger(COMPONENT, `Removing node on high demand node pool: ${this.hNodePool}`);
-    return this.removeNode(nodeName, this.hNodePool);
+    const removeSucced = this.removeNode(nodeName, this.hNodePool);
+    if(!removeSucced) throw new Error(`Error while removing node ${nodeName} on high node pool`);
+    return removeSucced;
   }
 
   removeNodeLowNodePool(nodeName: string): boolean {
     logger(COMPONENT, `Removing node on low demand node pool: ${this.lNodePool}`);
-    return this.removeNode(nodeName, this.lNodePool);
+    const removeSucced =  this.removeNode(nodeName, this.lNodePool);
+    if(!removeSucced) throw new Error(`Error while removing node ${nodeName} on low node pool`);
+    return removeSucced;
   }
   getClusterNodeInfo(): Array<any> {
     const clusterName = this.k8sClient.getClusterName();
@@ -87,11 +105,13 @@ class GkeNodeMigrator {
     const instanceZone = electedInstance.instance
       .split("/zones/")[1]
       .split("/")[0];
-    return this.removeMigInstance(
+    const removeSucced =  this.removeMigInstance(
       nodeName,
       this.getInstanceGroup(nodePool)[0],
       instanceZone
     );
+
+    return removeSucced;
   }
   private removeMigInstance(
     nodeName: string,
@@ -117,10 +137,11 @@ class GkeNodeMigrator {
       logger(COMPONENT, `Error while trying to remove ${nodeName} node on ${instanceGroup} instance group: ${error}`, 'info');
       return false;
     }
+    logger(COMPONENT, `Node ${nodeName} removed from MIG ${instanceGroup} successfully`);
     return true;
   }
 
-  private addMigInstance(nodePool: string): string | null{
+  private addMigInstance(nodePool: string): string | null {
     const project = this.k8sClient.getProject();
     const zone = this.k8sClient.getRegion();
     const instanceGroup = this.getInstanceGroup(nodePool)[0];
@@ -134,16 +155,22 @@ class GkeNodeMigrator {
           --project=${this.k8sClient.getProject()}`
       )
       logger(COMPONENT, `Wating for instace group ${instanceGroup} to stable...`)
-        execSync(`
+      execSync(`
           gcloud compute instance-groups managed wait-until --stable \
           ${instanceGroup} \
           --zone=${zone} \
           --project=${project}
-        `)
+      `)
       logger(COMPONENT, `Waiting for node ${instanceName} to become Ready...`);
       if (!this.k8sClient.waitUntilNodeReady(instanceName)) {
+        logger(COMPONENT, `Node ${instanceName} not Ready in time; rolling back MIG instance`, 'error');
+        const cleanedUp = this.removeMigInstance(instanceName, instanceGroup, zone);
+        if (!cleanedUp) {
+          logger(COMPONENT, `CRITICAL: failed to clean up orphan MIG instance ${instanceName}. Manual intervention required.`, 'error');
+        }
         return null;
       }
+      logger(COMPONENT, `Node is ready and already recognize by Kubernetes Cluster`);
       return instanceName;
     } catch (error) {
       logger(COMPONENT, `Error trying to add instance on MIG: ${error}`, 'error');
@@ -237,6 +264,10 @@ class GkeNodeMigrator {
       if (!nodePool || !creationTimestamp) return [];
       return [{ node: n.node, score: n.score, nodePool, creationTimestamp }];
     });
+  }
+
+  annotateNode(nodeName: string, key: keyof typeof ANNOTATION, value: string){
+    this.k8sClient.annotateNode(nodeName, key, value);
   }
 }
 
