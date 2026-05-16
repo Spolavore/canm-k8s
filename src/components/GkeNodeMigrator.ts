@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import KubernetesClient from "@lib/KubernetesClient";
 import type { ProviderConfig } from "@lib/KubernetesClient";
 import type { NodeScore, ExpandedNodeScore } from "@/types";
-import { logger } from "@/utils";
+import { logger, generateHash } from "@/utils";
 
 const COMPONENT = "GKE Node Migrator";
 
@@ -32,14 +32,14 @@ class GkeNodeMigrator {
     logger(COMPONENT, `Draning ${nodeName}...`);
     return this.k8sClient.drain(nodeName, gracefulPeriod, force);
   }
-  addNodeHighNodePool(): boolean {
+  addNodeHighNodePool(): string | null {
     logger(COMPONENT, `Adding node on high demand node pool: ${this.hNodePool}`);
-    return this.resizeNodePool(this.hNodePool, this.getNodePoolCount(this.hNodePool) + 1);
+    return this.addMigInstance(this.hNodePool);
   }
 
-  addNodeLowNodePool(): boolean {
+  addNodeLowNodePool(): string | null {
     logger(COMPONENT, `Adding node on low demand node pool: ${this.lNodePool}`);
-    return this.resizeNodePool(this.lNodePool, this.getNodePoolCount(this.lNodePool) + 1);
+    return this.addMigInstance(this.lNodePool);
   }
 
   removeNodeHighNodePool(nodeName: string): boolean {
@@ -73,34 +73,6 @@ class GkeNodeMigrator {
       return [];
     }
   }
-
-  private resizeNodePool(nodePool: string, numNodes: number): boolean {
-    const clusterName = this.k8sClient.getClusterName();
-    const region = this.k8sClient.getRegion();
-    const project = this.k8sClient.getProject();
-    const start = Date.now();
-    try {
-      execSync(
-        `
-                gcloud container clusters resize ${clusterName} \
-                --node-pool ${nodePool} \
-                --num-nodes ${numNodes} \
-                --zone ${region} \
-                --project ${project} \
-                --quiet
-            `,
-        { stdio: "pipe" }
-      );
-      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-      logger(COMPONENT, `Node pool ${nodePool} resized to ${numNodes} node(s) in ${elapsed}s`);
-      return true;
-    } catch (error) {
-      const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-      logger(COMPONENT, `Failed to resize node pool ${nodePool} to ${numNodes} after ${elapsed}s: ${error}`, 'error');
-      return false;
-    }
-  }
-
 
   private removeNode(nodeName: string, nodePool: string): boolean {
     const instances = this.getNodesFromPool(nodePool);
@@ -136,7 +108,7 @@ class GkeNodeMigrator {
                 `);
       logger(COMPONENT, 'Wating for instace group to stable...')
       execSync(`
-          gcloud compute instance-groups managed wait-until-stable \
+          gcloud compute instance-groups managed wait-until --stable \
           ${instanceGroup} \
           --zone=${zone} \
           --project=${this.k8sClient.getProject()}
@@ -148,6 +120,50 @@ class GkeNodeMigrator {
     return true;
   }
 
+  private addMigInstance(nodePool: string): string | null{
+    const project = this.k8sClient.getProject();
+    const zone = this.k8sClient.getRegion();
+    const instanceGroup = this.getInstanceGroup(nodePool)[0];
+    const instanceName = this.generateInstanceName(nodePool);
+    try {
+      logger(COMPONENT, `Adding instance on MIG: ${instanceGroup}`);
+      execSync(
+        `gcloud compute instance-groups managed create-instance ${instanceGroup} \
+          --instance=${instanceName} \
+          --zone=${this.k8sClient.getRegion()} \
+          --project=${this.k8sClient.getProject()}`
+      )
+      logger(COMPONENT, `Wating for instace group ${instanceGroup} to stable...`)
+        execSync(`
+          gcloud compute instance-groups managed wait-until --stable \
+          ${instanceGroup} \
+          --zone=${zone} \
+          --project=${project}
+        `)
+      logger(COMPONENT, `Waiting for node ${instanceName} to become Ready...`);
+      if (!this.k8sClient.waitUntilNodeReady(instanceName)) {
+        return null;
+      }
+      return instanceName;
+    } catch (error) {
+      logger(COMPONENT, `Error trying to add instance on MIG: ${error}`, 'error');
+      return null;
+    }
+  }
+
+  private generateInstanceName(nodePool: string): string{
+    const MAX_INSTANCE_NAME_LENGTH = 63;
+    const hashes = [generateHash(8), generateHash(4)]
+    const clusterName = this.k8sClient.getClusterName();
+    const options = [
+        `gke-${clusterName}-${nodePool}-${hashes[0]}-${hashes[1]}`,
+        `gke-${clusterName}-${nodePool}-${hashes[0]}`,
+        `gke-${nodePool}-${hashes[0]}`,
+        `gke-canm-node-${hashes[0]}-${hashes[1]}`
+      ]
+    return options.find(name => name.length <= MAX_INSTANCE_NAME_LENGTH)!;
+  }
+
   private getInstanceGroup(nodePool: string) {
     const nodePools = this.getClusterNodeInfo();
     // Always returns an array with 1 elemente since de node name in GKE is a unique identifier.
@@ -155,6 +171,7 @@ class GkeNodeMigrator {
     const instanceGroupUrl = np[0].instanceGroupUrls;
     return instanceGroupUrl;
   }
+
   private getNodesFromPool(nodePool: string): Array<any> {
     const instanceGroupUrl = this.getInstanceGroup(nodePool);
     let instancesResponse: Array<any> = [];
@@ -179,7 +196,8 @@ class GkeNodeMigrator {
     }
     return instancesResponse;
   }
-  getInstancesCreationDates(instanceNames: string[]): Record<string, string | null> {
+
+  private getInstancesCreationDates(instanceNames: string[]): Record<string, string | null> {
     const result: Record<string, string | null> = Object.fromEntries(instanceNames.map((n) => [n, null]));
     if (instanceNames.length === 0) return result;
 
@@ -200,10 +218,6 @@ class GkeNodeMigrator {
       logger(COMPONENT, `Error while getting creation dates for instances: ${error}`, 'error');
     }
     return result;
-  }
-
-  getNodePoolCount(nodePool: string): number {
-    return this.getNodesFromPool(nodePool).length;
   }
 
   expandNodesInfo(nodes: NodeScore[]): ExpandedNodeScore[]{

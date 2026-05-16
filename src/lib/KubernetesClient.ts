@@ -67,6 +67,28 @@ class KubernetesClient {
     }
   }
 
+  waitUntilNodeReady(nodeName: string, readyTimeoutSeconds = 300, registrationTimeoutSeconds = 120): boolean {
+    try {
+      execSync(
+        `kubectl wait --for=create node/${nodeName} --timeout=${registrationTimeoutSeconds}s`,
+        { encoding: 'utf-8' }
+      );
+    } catch (error) {
+      logger(COMPONENT, `Node ${nodeName} was not registered in ${registrationTimeoutSeconds}s: ${error}`, 'error');
+      return false;
+    }
+    try {
+      execSync(
+        `kubectl wait --for=condition=Ready node/${nodeName} --timeout=${readyTimeoutSeconds}s`,
+        { encoding: 'utf-8' }
+      );
+      return true;
+    } catch (error) {
+      logger(COMPONENT, `Node ${nodeName} did not become Ready in ${readyTimeoutSeconds}s: ${error}`, 'error');
+      return false;
+    }
+  }
+
   static async getNodeNames(): Promise<string[]> {
     const kc = new k8s.KubeConfig();
     kc.loadFromDefault();
