@@ -5,7 +5,7 @@ import { AvailableProviders, ComparisonOperator, MigrationConfig, RawWeightsConf
 import { comp } from "@/utils/math";
 import { ProviderConfig } from "@/lib/KubernetesClient";
 import { exit } from "process";
-import type { ExpandedNodeScore, MigrationDirection } from "@/types";
+import type { ExpandedNodeScore, MigrationDirection, MigrationPipelineResponse } from "@/types";
 import { logger } from "@/utils";
 import { convertToMs } from "@/utils/date";
 
@@ -108,27 +108,40 @@ class MigratorOrchestrator {
 
         return actionEffectuated;
     }
+
+    private executeMigrationPipeline(node: ExpandedNodeScore, direction: MigrationDirection): MigrationPipelineResponse{ 
+        try {
+            direction == "high->low" ? this.nodeMigrator.addNodeLowNodePool() : this.nodeMigrator.addNodeHighNodePool();
+        } catch (error) {
+            logger(COMPONENT, `Error on adding node: ${error}`);    
+            return {status: 'failed', stage: 'addition'};
+        }
+
+        try {    
+            this.nodeMigrator.drain(node.node, 60, true)
+        } catch (error) {
+            logger(COMPONENT, `Error on adding node ${node.node}: ${error}`);    
+            return {status: 'failed', stage: 'draining'};
+        }
+
+        try {
+            direction == "high->low" ? this.nodeMigrator.removeNodeHighNodePool(node.node) : this.nodeMigrator.removeNodeLowNodePool(node.node);
+        } catch (error) {
+            logger(COMPONENT, `Error on removing node ${node.node}: ${error}`);    
+            return {status: 'failed', stage: 'removing'};
+        }
+        
+        return {status: 'passed', stage: 'conclued'};
+    }
+
     private migrateNode(node: ExpandedNodeScore){
         const nodePoolTo = node.nodePool === this.migrationConfig.lowNodePool ? this.migrationConfig.highNodePool : this.migrationConfig.lowNodePool;
         const direction: MigrationDirection = nodePoolTo === this.migrationConfig.lowNodePool ? 'high->low' : 'low->high';
         logger(COMPONENT, `Migrating ${node.node} with score ${node.score.toFixed(2)} to ${nodePoolTo}`);
         const start = Date.now();
-        let success = false;
-        switch(nodePoolTo){
-            case this.migrationConfig.lowNodePool:
-                success = this.nodeMigrator.addNodeLowNodePool()
-                    && this.nodeMigrator.drain(node.node, 60, true)
-                    && this.nodeMigrator.removeNodeHighNodePool(node.node);
-                break;
-
-            case this.migrationConfig.highNodePool:
-                success = this.nodeMigrator.addNodeHighNodePool()
-                    && this.nodeMigrator.drain(node.node, 60, true)
-                    && this.nodeMigrator.removeNodeLowNodePool(node.node);
-                break;
-        }
+        const pipelineRes: MigrationPipelineResponse = this.executeMigrationPipeline(node, direction);
         const durationMs = Date.now() - start;
-        if(success){
+        if(pipelineRes.status === 'passed'){
             logger(COMPONENT, `Migration finished in ${(durationMs / 1000).toFixed(1)}s`);
         } else {
             logger(COMPONENT, `Migration of ${node.node} failed after ${(durationMs / 1000).toFixed(1)}s`, 'error');
@@ -142,7 +155,7 @@ class MigratorOrchestrator {
             fromPool: node.nodePool,
             toPool: nodePoolTo,
             policy: this.migrationConfig.policy!,
-            success,
+            status: pipelineRes.status,
         });
     }
 

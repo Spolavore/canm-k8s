@@ -48,5 +48,14 @@ export type AuditLogEntry = {
     fromPool: string;
     toPool: string;
     policy: MigrationPolicies;
-    success: boolean;
+    status: MigrationStatus;
+}
+
+export type MigrationStages = 'addition' | 'draining' | 'removing' | 'conclued';
+
+type MigrationStatus = 'passed' | 'failed'
+
+export type MigrationPipelineResponse = {
+    status: MigrationStatus ,
+    stage:  MigrationStages
 }
