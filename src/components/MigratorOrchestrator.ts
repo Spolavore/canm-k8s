@@ -31,6 +31,8 @@ class MigratorOrchestrator {
             checkInterval: '1m',
             highNodeCoolDown: '30m',
             lowNodeCoolDown: '5m',
+            lowPoolTimeWindowEval: '5m',
+            highPoolTimeWindowEval: '30m',
             ...migrationConfig,
         };
         this.provider = provider;
@@ -156,8 +158,8 @@ class MigratorOrchestrator {
              'info', this.showDecisionsLogs);
 
         const [nodesScoreLowNodePool, nodesScoreHighNodePool] = await Promise.all([
-            this.getNodesScore('10m', 'low'),
-            this.getNodesScore('1h', 'high'),
+            this.getNodesScore(this.migrationConfig.lowPoolTimeWindowEval!, 'low'),
+            this.getNodesScore(this.migrationConfig.highPoolTimeWindowEval!, 'high'),
         ]).then(([low, high]) => [
             low ? this.sortByScore(low, 'desc') : [],
             high ? this.sortByScore(high, 'asc') : [],
