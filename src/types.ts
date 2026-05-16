@@ -32,7 +32,9 @@ export type MigrationConfig = {
     policy?: MigrationPolicies,
     checkInterval?: string,
     highNodeCoolDown?: string,
-    lowNodeCoolDown?: string
+    lowNodeCoolDown?: string,
+    lowPoolTimeWindowEval?: string,
+    highPoolTimeWindowEval?: string,
 }
 
 export type MigrationDirection = 'high->low' | 'low->high';

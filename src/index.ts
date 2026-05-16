@@ -12,6 +12,8 @@ const migrationConfig: MigrationConfig = {
   ...(process.env.CHECK_INTERVAL && { checkInterval: process.env.CHECK_INTERVAL }),
   ...(process.env.HIGH_NODE_COOL_DOWN && { highNodeCoolDown: process.env.HIGH_NODE_COOL_DOWN }),
   ...(process.env.LOW_NODE_COOL_DOWN && { lowNodeCoolDown: process.env.LOW_NODE_COOL_DOWN }),
+  ...(process.env.LOW_POOL_TIME_WINDOW_EVAL && { lowPoolTimeWindowEval: process.env.LOW_POOL_TIME_WINDOW_EVAL }),
+  ...(process.env.HIGH_POOL_TIME_WINDOW_EVAL && { highPoolTimeWindowEval: process.env.HIGH_POOL_TIME_WINDOW_EVAL }),
 };
 
 const providerConfig = loadProviderConfig();
