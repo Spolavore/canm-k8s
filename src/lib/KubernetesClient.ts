@@ -2,7 +2,7 @@ import * as k8s from '@kubernetes/client-node';
 import * as gkeCredentialsGenerator from '@config/gkeCredentialsGenerator';
 import { execSync } from 'node:child_process';
 import { AvailableProviders } from '@/types';
-import { logger } from '@/utils';
+import { logger, ANNOTATION } from '@/utils';
 
 const COMPONENT = 'KubernetesClient';
 
@@ -67,6 +67,16 @@ class KubernetesClient {
     }
   }
 
+  uncordon(nodeName: string): boolean {
+    try {
+      execSync(`kubectl uncordon ${nodeName}`, { encoding: 'utf-8' });
+      return true;
+    } catch (error) {
+      logger(COMPONENT, `Error while trying to uncordon ${nodeName}: ${error}`, 'error');
+      return false;
+    }
+  }
+
   waitUntilNodeReady(nodeName: string, readyTimeoutSeconds = 300, registrationTimeoutSeconds = 120): boolean {
     try {
       execSync(
@@ -86,6 +96,20 @@ class KubernetesClient {
     } catch (error) {
       logger(COMPONENT, `Node ${nodeName} did not become Ready in ${readyTimeoutSeconds}s: ${error}`, 'error');
       return false;
+    }
+  }
+
+  annotateNode(nodeName: string, key: keyof typeof ANNOTATION, value: string): boolean{
+    try {
+      const formattedValue = value.replace(/'/g, "'\\''");
+      execSync(
+        `kubectl annotate nodes ${nodeName} --overwrite ${key}=${formattedValue}`
+      )
+      logger(COMPONENT, `Node ${nodeName} annotated with ${key}=${formattedValue}`, 'info', process.env.SHOW_DECISIONS_LOGS === "TRUE");
+      return true
+    } catch (error) { 
+      logger(COMPONENT, `Error trying to annotate node ${nodeName}: ${error}`);
+      return  false
     }
   }
 

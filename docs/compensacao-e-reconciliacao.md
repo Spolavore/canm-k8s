@@ -45,19 +45,25 @@ em ordem inversa.
 
 Aplicado ao CANM, o mapeamento é:
 
-| Forward action       | Compensating action                          |
-|----------------------|----------------------------------------------|
-| `addNode<Pool>`      | `removeNode<Pool>` do nó recém-criado        |
-| `drain`              | (sem compensação direta — ver nota abaixo)   |
-| `removeNode<Pool>`   | (etapa final — nada a compensar)             |
+| Forward action       | Compensating action                                                 |
+|----------------------|---------------------------------------------------------------------|
+| `addNode<Pool>`      | Nenhuma — é a primeira etapa; falha aqui deixa o cluster intacto    |
+| `drain`              | `uncordon` do nó de origem + `removeNode<Pool>` do nó recém-criado  |
+| `removeNode<Pool>`   | Marca o nó de origem com `STATE=pending-removal` (dead-letter)      |
 
-**Nota sobre o `drain`**: a operação de drain em si não tem uma "operação
-inversa" trivial (não é possível "des-drenar" o nó devolvendo pods movidos).
-Felizmente, ela também não precisa: se `drain` falha, o nó de origem
-permanece em uso normal e o cleanup necessário é apenas remover o nó *novo*
-que foi adicionado pelo `addNode`. Se `drain` passa mas `removeNode` falha, o
-nó de origem fica vazio (cordoned) — esse é o caso tratado pela
-reconciliação, não pela compensação.
+**Nota sobre o `drain`**: o comando `kubectl drain` não é atômico. Ele é
+client-side e faz duas operações server-side em sequência — `cordon` no nó
+de origem e um *loop* de evictions sobre os pods. Em quase todo cenário
+real de falha (PDB violado, timeout, webhook recusando eviction), o cordon
+**já foi aplicado** quando o comando retorna erro. Portanto a compensação
+precisa, além de remover o nó novo órfão, executar `uncordon` no nó de
+origem para que ele volte a ser elegível no scheduler. As duas operações
+são independentes — uma falhar não impede a outra.
+
+Se ambas as operações da compensação tiverem sucesso, o cluster volta ao
+estado pré-migração. Se a remoção do nó novo falhar, ele é marcado com
+`STATE=pending-removal` + `TARGET_POOL=<pool de destino>` para ser
+retomado pela reconciliação.
 
 ### 2.2. Estado persistente via annotations
 
@@ -75,15 +81,46 @@ Vantagens dessa abordagem:
 - Elimina a necessidade de volume mounts, locks de arquivo ou armazenamento
   externo.
 
-Annotations propostas (prefixo `canm.io/`):
+Annotations utilizadas (prefixo `canm.io/`):
 
-| Annotation                       | Significado                                                |
-|----------------------------------|------------------------------------------------------------|
-| `canm.io/migration-state`        | `creating` \| `draining` \| `pending-removal`              |
-| `canm.io/source-node`            | Nome do nó de origem (no nó recém-criado)                  |
-| `canm.io/target-pool`            | Pool de destino                                            |
-| `canm.io/migration-started-at`   | Timestamp ISO do início da migração                        |
-| `canm.io/last-failure`           | Última mensagem de erro, se houver                         |
+| Annotation                       | Significado                                                                |
+|----------------------------------|----------------------------------------------------------------------------|
+| `canm.io/migration-state`        | `created` \| `draining` \| `managed` \| `pending-removal`                  |
+| `canm.io/target-node-pool`       | Pool em que o nó vive (usado pela reconciliação para decidir qual `removeNode<Pool>` chamar) |
+
+Cada annotation se refere ao **próprio nó que a carrega**, em vez de
+descrever a saga inteira. Isso vale tanto para o nó novo (criado pelo CANM)
+quanto para o nó antigo (alvo da migração) — cada um carrega o estado da
+sua parte do ciclo.
+
+**Ciclo do nó novo** (caminho feliz):
+
+```
+addNode passa     → STATE=created
+                    TARGET_POOL=<pool em que nasceu>
+drain passa       → STATE=draining
+removeNode passa  → STATE=managed
+```
+
+`managed` sinaliza que o nó terminou a saga e está em estado estacionário,
+pronto para receber workload. A reconciliação ignora nós nesse estado.
+
+**Ciclo do nó antigo** (apenas em caso de falha):
+
+```
+removeNode falha  → STATE=pending-removal (no nó antigo)
+```
+
+Em caminho feliz, o nó antigo é deletado fisicamente quando `removeNode`
+passa, levando junto todas as suas annotations — não há necessidade de
+anotar nada nele durante a saga normal.
+
+**Compensação de `drain` falhando** (segue o mesmo padrão):
+
+```
+draining falha → tenta uncordon(source) + remove(nó novo)
+   se remove falhar → STATE=pending-removal + TARGET_POOL no nó novo
+```
 
 ### 2.3. Reconciliation loop
 
@@ -119,26 +156,42 @@ disputas por recursos.
 
 ### 3.1. O que acontece em cada cenário de falha
 
-| Etapa que falha | Compensação imediata             | Estado pós-falha                                  |
-|-----------------|----------------------------------|---------------------------------------------------|
-| `addNode`       | Nenhuma (primeira etapa)         | Cluster intacto                                   |
-| `drain`         | `remove` do nó recém-criado      | Cluster intacto                                   |
-| `removeNode`    | Nenhuma — vira *dead-letter*     | Nó drenado fica anotado; reconciliação retoma     |
+| Etapa que falha | Compensação imediata                                      | Estado pós-falha                                  |
+|-----------------|-----------------------------------------------------------|---------------------------------------------------|
+| `addNode`       | Nenhuma (primeira etapa)                                  | Cluster intacto                                   |
+| `drain`         | `uncordon` no source + `remove` do nó recém-criado        | Cluster intacto (ou nó novo vira *dead-letter*)   |
+| `removeNode`    | Marca source com `pending-removal` — vira *dead-letter*   | Nó drenado fica anotado; reconciliação retoma     |
+
+Para o caso `drain`, as duas ações da compensação (`uncordon` no source e
+`removeNode` no nó novo) são tentadas em try/catch separados — uma falhar
+não impede a outra. Se o `removeNode` falhar dentro da compensação, o nó
+novo recebe `STATE=pending-removal` + `TARGET_POOL=<pool>` para que a
+reconciliação retome.
 
 ### 3.3. Lógica da reconciliação
 
-A reconciliação trata principalmente o caso `pending-removal`. O fluxo é:
+A reconciliação varre nós cujo `canm.io/migration-state` indica saga em
+aberto. O fluxo principal é:
 
-1. Encontrar nós com `canm.io/migration-state=pending-removal`.
-2. Para cada um, tentar `removeNode<Pool>` novamente.
-3. Em caso de sucesso, limpar as annotations.
+1. Encontrar nós com `STATE=pending-removal`.
+2. Para cada um, ler `TARGET_POOL` e chamar `removeNode<Pool>` novamente.
+3. Em caso de sucesso, o nó é deletado fisicamente (annotations vão junto).
 4. Em caso de falha persistente, manter a annotation e logar — esse nó
    continuará tentando ser removido a cada ciclo.
 
-Casos mais raros (ex.: nó com `state=creating` mas migração nunca concluída)
-também são tratados aqui: representam um crash do CANM no meio de uma saga,
-e a reconciliação deve removê-los com base na ausência do `sourceNode`
-correspondente ou em um timeout configurável.
+Casos secundários a tratar:
+
+- Nó com `STATE=created` mas sem progresso há tempo suficiente
+  (ex.: timeout configurável): representa um crash do CANM logo após o
+  `addNode`. A reconciliação pode escolher retomar a saga ou abortar
+  removendo o nó novo.
+- Nó com `STATE=draining`: idem, mas após o início do drain. Como o drain
+  pode ter deixado o source cordoned e parcialmente evictado, a
+  reconciliação tipicamente termina o drain remanescente ou aborta com
+  uncordon do source + remoção do nó novo.
+
+Nós em `STATE=managed` são ignorados pela reconciliação — representam o
+estado estacionário do caminho feliz.
 
 ## 4. Decisões explícitas para esta primeira versão
 
