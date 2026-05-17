@@ -1,10 +1,12 @@
 import { execSync } from "node:child_process";
 import KubernetesClient from "@lib/KubernetesClient";
 import type { ProviderConfig } from "@lib/KubernetesClient";
-import type { NodeScore, ExpandedNodeScore } from "@/types";
+import type { NodeScore, ExpandedNodeScore, CanmManagedNode } from "@/types";
 import { logger, generateHash, ANNOTATION } from "@/utils";
 
 const COMPONENT = "GKE Node Migrator";
+const CANM_NODE_PREFIX = "gke-canm";
+const GKE_NODEPOOL_LABEL = "cloud.google.com/gke-nodepool";
 
 type GkeInstance = {
   id: string;
@@ -183,12 +185,31 @@ class GkeNodeMigrator {
     const hashes = [generateHash(8), generateHash(4)]
     const clusterName = this.k8sClient.getClusterName();
     const options = [
-        `gke-${clusterName}-${nodePool}-${hashes[0]}-${hashes[1]}`,
-        `gke-${clusterName}-${nodePool}-${hashes[0]}`,
-        `gke-${nodePool}-${hashes[0]}`,
-        `gke-canm-node-${hashes[0]}-${hashes[1]}`
+        `${CANM_NODE_PREFIX}-${clusterName}-${nodePool}-${hashes[0]}-${hashes[1]}`,
+        `${CANM_NODE_PREFIX}-${clusterName}-${nodePool}-${hashes[0]}`,
+        `${CANM_NODE_PREFIX}-${nodePool}-${hashes[0]}`,
+        `${CANM_NODE_PREFIX}-${hashes[0]}-${hashes[1]}`
       ]
     return options.find(name => name.length <= MAX_INSTANCE_NAME_LENGTH)!;
+  }
+
+  async getCanmManagedNodes(): Promise<CanmManagedNode[]> {
+    const allNodes = await this.k8sClient.listNodes();
+    return allNodes
+      .filter((n) => n.name.startsWith(CANM_NODE_PREFIX))
+      .flatMap((n) => {
+        const nodePool = n.labels[GKE_NODEPOOL_LABEL];
+        if (!nodePool) {
+          logger(COMPONENT, `CANM-prefixed node ${n.name} has no ${GKE_NODEPOOL_LABEL} label; skipping`, 'error');
+          return [];
+        }
+        return [{
+          name: n.name,
+          creationTimestamp: n.creationTimestamp,
+          annotations: n.annotations,
+          nodePool,
+        }];
+      });
   }
 
   private getInstanceGroup(nodePool: string) {
