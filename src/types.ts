@@ -13,43 +13,42 @@ export type WeightsConfig = {
 };
 
 export type NodeScore = {
-  node: string,
-  score: number
-}
+    node: string;
+    score: number;
+};
 
 export type ExpandedNodeScore = {
-    node: string,
-    score: number,
-    nodePool: string,
-    creationTimestamp: string
-}
+    node: string;
+    score: number;
+    nodePool: string;
+    creationTimestamp: string;
+};
 
-export type K8sNodeInfo = {
-    name: string,
-    creationTimestamp: string | null,
-    annotations: Record<string, string>,
-    labels: Record<string, string>,
-}
+export type KubernetesNodes = {
+    name: string;
+    creationTimestamp: string | null;
+    annotations: Record<string, string>;
+    labels: Record<string, string>;
+    nodePool?: string;
+};
 
-export type CanmManagedNode = {
-    name: string,
-    creationTimestamp: string | null,
-    annotations: Record<string, string>,
-    nodePool: string,
-}
+export type ClusterNodes = {
+    createdByCanm: KubernetesNodes[];
+    createdByProvider: KubernetesNodes[];
+};
 
 export type MigrationConfig = {
-    highNodePool: string,
-    lowNodePool: string,
-    lowScoreThreshold: number,
-    highScoreThreshold: number,
-    policy?: MigrationPolicies,
-    checkInterval?: string,
-    highNodeCoolDown?: string,
-    lowNodeCoolDown?: string,
-    lowPoolTimeWindowEval?: string,
-    highPoolTimeWindowEval?: string,
-}
+    highNodePool: string;
+    lowNodePool: string;
+    lowScoreThreshold: number;
+    highScoreThreshold: number;
+    policy?: MigrationPolicies;
+    checkInterval?: string;
+    highNodeCoolDown?: string;
+    lowNodeCoolDown?: string;
+    lowPoolTimeWindowEval?: string;
+    highPoolTimeWindowEval?: string;
+};
 
 export type MigrationDirection = 'high->low' | 'low->high';
 
@@ -63,13 +62,17 @@ export type AuditLogEntry = {
     toPool: string;
     policy: MigrationPolicies;
     status: MigrationStatus;
-}
+};
 
-export type MigrationStages = 'addition' | 'draining' | 'removing' | 'conclued';
+// Which pipeline step a migration was on — used in MigrationPipelineResponse and compensate(stage)
+export type PipelineStage = 'addition' | 'draining' | 'removing' | 'conclued';
 
-type MigrationStatus = 'passed' | 'failed'
+// Value of the canm.io/state annotation on the node — describes the node's current logical condition
+export type CanmNodeState = 'created' | 'managed' | 'pending-removal';
+
+type MigrationStatus = 'passed' | 'failed';
 
 export type MigrationPipelineResponse = {
-    status: MigrationStatus ,
-    stage:  MigrationStages
-}
+    status: MigrationStatus;
+    stage: PipelineStage;
+};

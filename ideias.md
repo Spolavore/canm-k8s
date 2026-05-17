@@ -11,3 +11,5 @@ removendo metrica de rede-> nao houve ganhos significativos
 
 
 Comprar dominio canm.io
+
+verificar last reconciliation try
