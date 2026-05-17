@@ -24,6 +24,20 @@ export type ExpandedNodeScore = {
     creationTimestamp: string
 }
 
+export type K8sNodeInfo = {
+    name: string,
+    creationTimestamp: string | null,
+    annotations: Record<string, string>,
+    labels: Record<string, string>,
+}
+
+export type CanmManagedNode = {
+    name: string,
+    creationTimestamp: string | null,
+    annotations: Record<string, string>,
+    nodePool: string,
+}
+
 export type MigrationConfig = {
     highNodePool: string,
     lowNodePool: string,

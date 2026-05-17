@@ -6,7 +6,7 @@ import { comp } from "@/utils/math";
 import { ProviderConfig } from "@/lib/KubernetesClient";
 import { exit } from "process";
 import type { ExpandedNodeScore, MigrationDirection, MigrationPipelineResponse } from "@/types";
-import { logger } from "@/utils";
+import { ANNOTATION, logger } from "@/utils";
 import { convertToMs } from "@/utils/date";
 
 const COMPONENT = "Migrator Orchestrator";
@@ -248,9 +248,27 @@ class MigratorOrchestrator {
         }
     }
 
+    private async reconcilePendingMigrations(): Promise<boolean>{
+        try {
+            const canmManagedNodes = (await this.nodeMigrator.getCanmManagedNodes());
+            const unreconciledNodes = canmManagedNodes.filter(node => node.annotations[ANNOTATION.STATE] !== 'managed' );
+            const canmAnnotationKeys: string[] = Object.values(ANNOTATION);
+            for(const node of unreconciledNodes){
+                const annotations = node.annotations;
+                const isNotMappedNode = Object.keys(annotations).filter(a => canmAnnotationKeys.includes(a)).length === 0;
+
+            }
+
+            return false;
+        } catch (error) {
+            return false;
+        }
+    };
     async start() {
         const tick = async () => {
             try {
+                const canEvaluateCluster = await this.reconcilePendingMigrations();
+                if(!canEvaluateCluster) return;
                 await this.evaluateCluster();
             } catch(err) {
                 logger(COMPONENT, `Unexpected error during cluster evaluation: ${err}`, 'error');

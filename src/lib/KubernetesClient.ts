@@ -3,6 +3,7 @@ import * as gkeCredentialsGenerator from '@config/gkeCredentialsGenerator';
 import { execSync } from 'node:child_process';
 import { AvailableProviders } from '@/types';
 import { logger, ANNOTATION } from '@/utils';
+import type { K8sNodeInfo } from "@/types";
 
 const COMPONENT = 'KubernetesClient';
 
@@ -101,11 +102,12 @@ class KubernetesClient {
 
   annotateNode(nodeName: string, key: keyof typeof ANNOTATION, value: string): boolean{
     try {
+      const fullDomainKey = ANNOTATION[key];
       const formattedValue = value.replace(/'/g, "'\\''");
       execSync(
-        `kubectl annotate nodes ${nodeName} --overwrite ${key}=${formattedValue}`
+        `kubectl annotate nodes ${nodeName} --overwrite ${fullDomainKey}=${formattedValue}`
       )
-      logger(COMPONENT, `Node ${nodeName} annotated with ${key}=${formattedValue}`, 'info', process.env.SHOW_DECISIONS_LOGS === "TRUE");
+      logger(COMPONENT, `Node ${nodeName} annotated with ${fullDomainKey}=${formattedValue}`, 'info', process.env.SHOW_DECISIONS_LOGS === "TRUE");
       return true
     } catch (error) { 
       logger(COMPONENT, `Error trying to annotate node ${nodeName}: ${error}`);
@@ -119,6 +121,26 @@ class KubernetesClient {
     const api = kc.makeApiClient(k8s.CoreV1Api);
     const nodeList = await api.listNode();
     return nodeList.items.map((node: k8s.V1Node) => node.metadata?.name ?? '').filter(Boolean);
+  }
+
+  async listNodes(): Promise<K8sNodeInfo[]> {
+    try {
+      const api = this.getCoreV1Api();
+      const nodeList = await api.listNode();
+      return nodeList.items
+        .map((node: k8s.V1Node) => ({
+          name: node.metadata?.name ?? '',
+          creationTimestamp: node.metadata?.creationTimestamp
+            ? new Date(node.metadata.creationTimestamp).toISOString()
+            : null,
+          annotations: node.metadata?.annotations ?? {},
+          labels: node.metadata?.labels ?? {},
+        }))
+        .filter((n) => n.name);
+    } catch (error) {
+      logger(COMPONENT, `Error while listing nodes: ${error}`, 'error');
+      return [];
+    }
   }
 
   getCoreV1Api(): k8s.CoreV1Api {
