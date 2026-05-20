@@ -157,6 +157,26 @@ class KubernetesClient {
         return nodeList.items.map((node: k8s.V1Node) => node.metadata?.name ?? '').filter(Boolean);
     }
 
+    async getNodeByName(nodeName: string): Promise<KubernetesNodes | null> {
+        try {
+            const api = this.getCoreV1Api();
+            const node = await api.readNode({ name: nodeName });
+            return {
+                name: node.metadata?.name ?? '',
+                creationTimestamp: node.metadata?.creationTimestamp
+                    ? new Date(node.metadata.creationTimestamp).toISOString()
+                    : null,
+                annotations: node.metadata?.annotations ?? {},
+                labels: node.metadata?.labels ?? {},
+            };
+        } catch (error: any) {
+            const code = error?.statusCode ?? error?.code ?? error?.response?.statusCode;
+            if (code === 404) return null;
+            logger(COMPONENT, `Error fetching node ${nodeName}: ${error}`, 'error');
+            return null;
+        }
+    }
+
     async listNodes(): Promise<KubernetesNodes[]> {
         try {
             const api = this.getCoreV1Api();

@@ -20,10 +20,15 @@ Daí a separação das annotations:
 | ------------------------- | -------------- | ---------------------------------------------- |
 | `canm.io/migration-stage` | No **source**  | `addition`, `draining`, `removing`, `conclued` |
 | `canm.io/state`           | No **novo nó** | `created`, `managed`, `pending-removal`        |
+| `canm.io/source-node`     | No **novo nó** | Nome do source que originou esse destino       |
 
 > O **novo nó nunca recebe** `canm.io/migration-stage` porque não é ele que está
 > sendo migrado. O **source nunca recebe** `canm.io/state` porque o STATE é uma
 > condição lógica dos nós que o CANM gerencia (os com prefixo `gke-canm-`).
+
+> A annotation `canm.io/source-node` no novo nó funciona como ligação reversa:
+> permite à reconciliação descobrir se o source correspondente ainda existe
+> antes de decidir se deve deletar o destino ou promovê-lo.
 
 ## Etapas
 
@@ -31,7 +36,10 @@ Daí a separação das annotations:
 
 1. Marca o **source** com `MIGRATION_STAGE = addition`.
 2. Cria o novo nó no node pool de destino.
-3. Se a criação **dá certo**: marca o novo nó com `STATE = created`.
+3. Se a criação **dá certo**:
+    - Marca o novo nó com `STATE = created`.
+    - Marca o novo nó com `SOURCE_NODE = <nome do source>` para permitir que
+      a reconciliação ligue destino ↔ source.
 4. Se **dá errado**: nada precisa ser revertido. Mesmo que o nó tenha sido
    parcialmente criado, ele entra órfão sem nenhuma annotation CANM, e a
    reconciliação captura nós com prefixo `gke-canm-` que não têm nenhuma
@@ -190,8 +198,27 @@ Causas típicas:
 - Pipeline morreu mid-flow após `STATE = created`, antes de `STATE = managed`.
 - Compensação de draining marcou o destino órfão como `pending-removal` por
   não ter conseguido removê-lo na hora.
+- **Migração efetivamente concluída** mas a aplicação morreu entre o `remove`
+  do source e a escrita de `STATE = managed`. Nesse caso o destino já está
+  servindo o workload do source removido.
 
-Ação: **deletar** (HEAVY).
+Para distinguir os casos, o reconcile usa a annotation `SOURCE_NODE` do
+destino e faz uma **consulta direta ao K8s** (via `getNodeByName`, não pelo
+snapshot do tick) pra ver se o source ainda existe:
+
+| Condição                                            | Ação                                          |
+| --------------------------------------------------- | --------------------------------------------- |
+| `state = pending-removal`                           | **deletar** (HEAVY) — sinal explícito         |
+| `state = created` e source **não existe** mais      | **promover a `managed`** (METADATA)           |
+| `state = created` e source **ainda existe**         | **deletar** (HEAVY) — migração incompleta     |
+| `state = created` mas destino sem `SOURCE_NODE`     | **deletar** (HEAVY) — default conservador     |
+
+> **Por que consulta ao vivo e não pelo snapshot:** o source pode ter sido
+> deletado **mais cedo neste mesmo tick** (e.g., quando o Case C `removing`
+> roda antes do Case B). O snapshot do início do tick ainda mostra o source
+> como existente, levando a uma decisão errada de deletar o destino
+> (carregando workload). A consulta direta reflete o estado real no momento da
+> decisão.
 
 #### Caso C — Source preso em algum stage
 
@@ -277,24 +304,28 @@ momento do drain, o destino já está aberto e é candidato natural do scheduler
 Essa melhoria é independente do mecanismo de compensação atual e pode ser
 adicionada sem refatorar o pipeline.
 
-### Promoção segura do destino quando a aplicação morre entre drain e managed
+### Ordenação sources-antes-de-destinations no reconcile (race remanescente)
 
-A reconciliação trata `STATE = created` como "deletar o destino" — política
-correta na maioria dos casos. Porém existe uma janela curta de risco: se a
-aplicação morrer **entre o drain bem-sucedido do source e a escrita de
-`STATE = managed`** no destino, o destino já está recebendo o workload do
-source mas ainda figura como `created`. Quando a reconciliação rodar, vai
-deletar o destino sem fazer um novo drain, os pods que estavam ali são
-abruptamente evictados e re-schedulados em outros nós — causando um blip
-curto de disponibilidade.
+A consulta ao vivo via `getNodeByName` resolve o pior caso (Test 1.10 do
+plano de testes: source já deletado, destino órfão com workload). Mas existe
+uma janela onde a **ordem de iteração** dentro do tick ainda importa.
 
-A janela é mínima (uma chamada de `kubectl annotate` separa as duas escritas),
-e o sistema se recupera sozinho via re-scheduling, então a primeira versão
-pode aceitar esse risco.
+Cenário: migração de **`low->high`** (source em low pool, destino em high
+pool) crash no Test 1.8 (após `MIGRATION_STAGE = removing` no source).
+`getUnreconciledNodes` ordena nós do high pool primeiro → **destino é
+processado antes do source**. Quando o Case B faz a consulta ao vivo, o
+source ainda existe (ainda não foi para o Case C `removing` deste tick) →
+destino vai pra branch de delete → workload perdido.
 
-Para blindar 100%, uma opção é registrar no destino um marcador adicional
-(ex.: `canm.io/drain-completed-at`) **imediatamente após** o drain do source
-ser bem-sucedido. Na reconciliação, se o destino tem `STATE = created` mas
-possui `drain-completed-at`, em vez de deletar, a reconciliação promove o
-destino para `managed` (já que o trabalho do pipeline já estava efetivamente
-concluído).
+Para `high->low` o problema não aparece porque source vem primeiro na ordem
+de cost, é deletado pelo Case C, e quando o destino é processado a consulta
+retorna 404.
+
+Fix sugerido: alterar `getUnreconciledNodes` para devolver **providers
+(sources) sempre antes de canm-created (destinations)**, mantendo o sort por
+custo dentro de cada grupo. Isso garante que toda decisão de Case B em
+destinos veja o estado já reconciliado dos sources do mesmo tick.
+
+Independente disso, a primeira versão aceita o blip nesse cenário específico
+porque o sistema continua **recuperável** — o workload re-escalona em outros
+nós, com latência adicional curta.
