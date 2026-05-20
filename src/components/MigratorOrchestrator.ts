@@ -13,7 +13,13 @@ import {
 import { comp } from '@/utils/math';
 import { ProviderConfig } from '@/lib/KubernetesClient';
 import { exit } from 'process';
-import type { KubernetesNodes, ExpandedNodeScore, MigrationDirection, MigrationPipelineResponse } from '@/types';
+import type {
+    KubernetesNodes,
+    ClusterNodes,
+    ExpandedNodeScore,
+    MigrationDirection,
+    MigrationPipelineResponse,
+} from '@/types';
 import { ANNOTATION, logger } from '@/utils';
 import { convertToMs } from '@/utils/date';
 
@@ -106,7 +112,7 @@ class MigratorOrchestrator {
             if (this.isNodeInCooldown(node)) {
                 logger(
                     COMPONENT,
-                    `Node ${node.node} of ${node.nodePool} is in cooldown: ${node.creationTimestamp}`,
+                    `Node ${node.node} of ${node.nodePool} is in cooldown, created at: ${node.creationTimestamp}`,
                     'info',
                     this.showDecisionsLogs,
                 );
@@ -195,6 +201,7 @@ class MigratorOrchestrator {
                     ? this.nodeMigrator.addNodeLowNodePool()
                     : this.nodeMigrator.addNodeHighNodePool();
             this.nodeMigrator.annotateNode(newNode!, 'STATE', 'created');
+            this.nodeMigrator.annotateNode(newNode!, 'SOURCE_NODE', node.node);
         } catch (error) {
             logger(COMPONENT, `Error on adding node: ${error}`);
             return { status: 'failed', stage: 'addition' };
@@ -220,6 +227,7 @@ class MigratorOrchestrator {
             this.compensate(direction, 'removing', node);
             return { status: 'failed', stage: 'removing' };
         }
+
         this.nodeMigrator.annotateNode(newNode!, 'STATE', 'managed');
         return { status: 'passed', stage: 'conclued' };
     }
@@ -260,12 +268,6 @@ class MigratorOrchestrator {
 
     private async evaluateCluster(): Promise<any> {
         logger(COMPONENT, `Iniciating cluster evaluation ${new Date().toISOString()}`);
-        logger(
-            COMPONENT,
-            `\nConfig:\nLow threshold: ${this.migrationConfig.lowScoreThreshold}\nLow cooldown: ${this.migrationConfig.lowNodeCoolDown}\nHigh threshold: ${this.migrationConfig.highScoreThreshold}\nHigh cooldown: ${this.migrationConfig.highNodeCoolDown}\nPolicy: ${this.migrationConfig.policy}`,
-            'info',
-            this.showDecisionsLogs,
-        );
 
         const [nodesScoreLowNodePool, nodesScoreHighNodePool] = await Promise.all([
             this.getNodesScore(this.migrationConfig.lowPoolTimeWindowEval!, 'low'),
@@ -312,8 +314,7 @@ class MigratorOrchestrator {
         }
     }
 
-    private async getUnreconciledNodes(): Promise<KubernetesNodes[]> {
-        const clusterNodes = await this.nodeMigrator.getClusterNodes();
+    private getUnreconciledNodes(clusterNodes: ClusterNodes): KubernetesNodes[] {
         const canmCreatedNodes = clusterNodes.createdByCanm;
         const providerNodes = clusterNodes.createdByProvider;
         // LAST_RECONCILIATION is diagnostic metadata, not a reconciliation trigger.
@@ -337,7 +338,12 @@ class MigratorOrchestrator {
         let heavyActionExecuted = false;
 
         try {
-            const unreconciledNodes = await this.getUnreconciledNodes();
+            const clusterNodes = await this.nodeMigrator.getClusterNodes();
+            const unreconciledNodes = this.getUnreconciledNodes(clusterNodes);
+            if (unreconciledNodes.length === 0) {
+                logger(COMPONENT, `No unreconciled nodes found, skipping to cluster evaluation...`);
+                return true;
+            }
             const canmAnnotationKeys: string[] = Object.values(ANNOTATION);
 
             const isInCooldown = (node: KubernetesNodes): boolean => {
@@ -383,7 +389,23 @@ class MigratorOrchestrator {
                 }
 
                 // CASE B: canm node in non-terminal STATE — HEAVY
-                if (state === 'created' || state === 'pending-removal') {
+                // Live K8s lookup (not snapshot) to avoid races where the source was deleted
+                // earlier in this same tick. Missing SOURCE_NODE annotation defaults to "exists"
+                // (conservative: keeps the old delete behavior instead of falsely promoting).
+                const sourceNodeName = node.annotations[ANNOTATION.SOURCE_NODE];
+                let sourceExists = true;
+                if (sourceNodeName) {
+                    const sourceNode = await this.nodeMigrator.getNodeByName(sourceNodeName);
+                    sourceExists = sourceNode !== null;
+                }
+                if (state === 'created' && !sourceExists) {
+                    logger(
+                        COMPONENT,
+                        `Node ${node.name} was already migrated, the source was deleted: updating node state to managed`,
+                    );
+                    this.nodeMigrator.annotateNode(node.name, 'STATE', 'managed');
+                    continue;
+                } else if (state == 'created' || state === 'pending-removal') {
                     if (heavyActionExecuted) continue;
                     logger(COMPONENT, `CANM node ${node.name} (state=${state}) is orphan, deleting`);
                     const ok = removeFromPool(node);
@@ -448,11 +470,22 @@ class MigratorOrchestrator {
     }
 
     async start() {
+        logger(
+            COMPONENT,
+            `\nConfig:\nLow threshold: ${this.migrationConfig.lowScoreThreshold}\nLow cooldown: ${this.migrationConfig.lowNodeCoolDown}\nHigh threshold: ${this.migrationConfig.highScoreThreshold}\nHigh cooldown: ${this.migrationConfig.highNodeCoolDown}\nPolicy: ${this.migrationConfig.policy}`,
+            'info',
+            this.showDecisionsLogs,
+        );
         const tick = async () => {
             try {
                 const canEvaluateCluster = await this.reconcilePendingMigrations();
                 if (canEvaluateCluster) {
                     await this.evaluateCluster();
+                } else {
+                    logger(
+                        COMPONENT,
+                        `The reconciliation step made changes to the state of the cluster, skipping evaluation...`,
+                    );
                 }
             } catch (err) {
                 logger(COMPONENT, `Unexpected error during cluster evaluation: ${err}`, 'error');

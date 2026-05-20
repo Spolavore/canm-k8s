@@ -1,0 +1,9 @@
+{
+  "promptDelete": false,
+  "trashOption": "system",
+  "strictLineBreaks": false,
+  "showLineNumber": false,
+  "defaultViewMode": "preview",
+  "foldIndent": true,
+  "tabSize": 2
+}

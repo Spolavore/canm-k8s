@@ -307,6 +307,10 @@ class GkeNodeMigrator {
     removeNodeAnnotation(nodeName: string, key: keyof typeof ANNOTATION): boolean {
         return this.k8sClient.removeNodeAnnotation(nodeName, key);
     }
+
+    async getNodeByName(nodeName: string): Promise<KubernetesNodes | null> {
+        return this.k8sClient.getNodeByName(nodeName);
+    }
 }
 
 export default GkeNodeMigrator;
