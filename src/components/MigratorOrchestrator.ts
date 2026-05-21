@@ -211,8 +211,6 @@ class MigratorOrchestrator {
                 direction == 'high->low'
                     ? this.nodeMigrator.addNodeLowNodePool()
                     : this.nodeMigrator.addNodeHighNodePool();
-            process.exit(1);
-
             this.nodeMigrator.annotateNode(newNode!, 'STATE', 'created');
             this.nodeMigrator.annotateNode(newNode!, 'SOURCE_NODE', node.node);
         } catch (error) {
