@@ -51,7 +51,7 @@ kubectl wait --for=condition=Ready node/gke-canm-<pool>-<hash>  (timeout: 300s)
 annotate(novo_nó, STATE = 'created')
 ```
 
-**Compensação em falha:** Nenhuma — o cluster permanece intacto. A annotation `MIGRATION_STAGE=addition` no source é removida na reconciliação.
+**Compensação em falha:** Remove imediatamente a annotation `MIGRATION_STAGE` do source. O cluster permanece intacto — nenhum nó foi criado. Para crashes (processo morto antes do catch), a reconciliação (Case C addition) é o safety net.
 
 ---
 
@@ -157,7 +157,7 @@ Destination Node:
     │ - kubectl wait Ready              │
     │ - annotate novo: state=created    │
     └────┬──────────────────────────────┘
-         │ FALHA? → remove annotation → TICK
+         │ FALHA? → compensate: removeAnnotation(MIGRATION_STAGE) → TICK
          │ OK ↓
     ┌────▼──────────────────────────────┐
     │ DRAINING                          │

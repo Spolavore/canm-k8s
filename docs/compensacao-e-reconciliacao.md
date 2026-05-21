@@ -47,7 +47,7 @@ Aplicado ao CANM, o mapeamento é:
 
 | Forward action       | Compensating action                                                 |
 |----------------------|---------------------------------------------------------------------|
-| `addNode<Pool>`      | Nenhuma — é a primeira etapa; falha aqui deixa o cluster intacto    |
+| `addNode<Pool>`      | Remove a annotation `MIGRATION_STAGE` do source — cluster intacto, nenhum nó foi criado |
 | `drain`              | `uncordon` do nó de origem + `removeNode<Pool>` do nó recém-criado  |
 | `removeNode<Pool>`   | Marca o nó de origem com `STATE=pending-removal` (dead-letter)      |
 
