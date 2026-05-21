@@ -149,6 +149,17 @@ class MigratorOrchestrator {
     ) {
         logger(COMPONENT, `Iniciating compensating process for stage: ${stage}`);
         switch (stage) {
+            case 'addition':
+                try {
+                    this.nodeMigrator.removeNodeAnnotation(currentNode.node, 'MIGRATION_STAGE');
+                } catch (error) {
+                    logger(
+                        COMPONENT,
+                        `Couldn't remove addition anotation from node ${currentNode.node}, error: ${error}`,
+                    );
+                    return;
+                }
+                break;
             case 'draining':
                 if (!nodeCreated) {
                     logger(COMPONENT, `Cannot compensate draining without nodeCreated reference`, 'error');
@@ -200,9 +211,12 @@ class MigratorOrchestrator {
                 direction == 'high->low'
                     ? this.nodeMigrator.addNodeLowNodePool()
                     : this.nodeMigrator.addNodeHighNodePool();
+            process.exit(1);
+
             this.nodeMigrator.annotateNode(newNode!, 'STATE', 'created');
             this.nodeMigrator.annotateNode(newNode!, 'SOURCE_NODE', node.node);
         } catch (error) {
+            this.compensate(direction, 'addition', node);
             logger(COMPONENT, `Error on adding node: ${error}`);
             return { status: 'failed', stage: 'addition' };
         }
@@ -322,7 +336,10 @@ class MigratorOrchestrator {
         const triggerKeys: string[] = Object.values(ANNOTATION).filter((k) => k !== ANNOTATION.LAST_RECONCILIATION);
         // First evaluate the more expensive nodes, which have greater impact on the total Cost.
         return [
-            ...canmCreatedNodes.filter((node) => node.annotations[ANNOTATION.STATE] !== 'managed'),
+            ...canmCreatedNodes.filter((node) => {
+                const annotations = node.annotations;
+                return annotations[ANNOTATION.STATE] !== 'managed' || annotations[ANNOTATION.MIGRATION_STAGE] != null;
+            }),
             ...providerNodes.filter((node) => Object.keys(node.annotations).some((a) => triggerKeys.includes(a))),
         ].sort(
             (a, b) =>
@@ -394,11 +411,16 @@ class MigratorOrchestrator {
                 // (conservative: keeps the old delete behavior instead of falsely promoting).
                 const sourceNodeName = node.annotations[ANNOTATION.SOURCE_NODE];
                 let sourceExists = true;
+                let sourceNode = null;
                 if (sourceNodeName) {
-                    const sourceNode = await this.nodeMigrator.getNodeByName(sourceNodeName);
+                    sourceNode = await this.nodeMigrator.getNodeByName(sourceNodeName);
                     sourceExists = sourceNode !== null;
                 }
-                if (state === 'created' && !sourceExists) {
+
+                if (
+                    state === 'created' &&
+                    (!sourceExists || sourceNode?.annotations[ANNOTATION.MIGRATION_STAGE] == 'removing')
+                ) {
                     logger(
                         COMPONENT,
                         `Node ${node.name} was already migrated, the source was deleted: updating node state to managed`,

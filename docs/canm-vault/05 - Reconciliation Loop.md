@@ -46,7 +46,21 @@ A reconciliação inspeciona **todos os nós do cluster** e filtra por:
 - `created`: CANM morreu após criar nó mas antes de concluir a migração
 - `pending-removal`: Falha na remoção do nó novo durante compensação
 
-**Ação:** DELETE o nó via gcloud (1 nó por tick).
+**Ação (depende do estado do source):**
+
+Para `state=created`, a reconciliação faz um live lookup do source referenciado em `canm.io/source-node`:
+
+| Condição                                              | Ação                                           |
+|-------------------------------------------------------|------------------------------------------------|
+| Source **não existe** (404)                           | Promove destination para `managed` (METADATA)  |
+| Source existe com `canm.io/migration-stage=removing`  | Promove destination para `managed` (METADATA)  |
+| Source existe e **sem** stage `removing`              | DELETE o destination via gcloud (HEAVY)        |
+
+A promoção para `managed` é segura nos dois primeiros casos porque o source já foi removido ou está na etapa final de remoção — o destination já recebeu o workload e é o nó legítimo do cluster.
+
+Para `state=pending-removal`: DELETE o nó via gcloud (1 nó por tick, HEAVY).
+
+> **Por que checar `removing` no source?** Sem esse check, se a reconciliação avalia o destination antes do source (o que ocorre em migrações `low->high`, onde o destination está no high pool e é priorizado pela ordenação de custo), ela deletaria o destination mesmo com o workload já migrado. O source seria então removido pelo Case C, deixando o cluster com um nó a menos.
 
 ---
 
@@ -97,7 +111,10 @@ reconcilePendingMigrations()
 │   │   └── gcloud delete-instances (1 por tick) → return false
 │   │
 │   ├── CASE B: state = 'created' ou 'pending-removal'
-│   │   └── gcloud delete-instances (1 por tick) → return false
+│   │   ├── state='created' → live lookup do source
+│   │   │   ├── source 404 ou stage=removing → promove para managed (METADATA)
+│   │   │   └── source existe e não removing → gcloud delete-instances (1 por tick) → return false
+│   │   └── state='pending-removal' → gcloud delete-instances (1 por tick) → return false
 │   │
 │   └── CASE C: migration-stage presente no source
 │       ├── stage = 'addition'  → remove annotation → return false
