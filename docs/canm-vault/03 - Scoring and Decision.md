@@ -18,7 +18,7 @@ sum(container_memory_working_set_bytes) by (node)
   / sum(machine_memory_bytes) by (node) * 100
 ```
 
-Ambas filtradas por `job="<PROMETHEUS_JOB>"`.
+Ambas filtradas por `job="<PROMETHEUS_JOB>"`, variável de ambiente passada por paramêtro pelo usuário.
 
 ---
 
@@ -59,18 +59,17 @@ score = (15.0 + 15.0) / 100 = 0.30  → nó candidato a high→low (abaixo de 0.
 
 O CANM usa janelas de tempo **diferentes por pool**:
 
-| Pool | Variável | Default | Racional |
-|------|----------|---------|----------|
-| Low Pool | `LOW_POOL_TIME_WINDOW_EVAL` | `10m` | Reage mais rápido à sobrecarga |
-| High Pool | `HIGH_POOL_TIME_WINDOW_EVAL` | `1h` | Janela longa evita flutuações em nós caros |
-
-A janela longa no high pool garante que um spike temporário não dispare uma migração cara desnecessariamente.
+| Pool      | Variável                     | Default | Racional                                   |
+| --------- | ---------------------------- | ------- | ------------------------------------------ |
+| Low Pool  | `LOW_POOL_TIME_WINDOW_EVAL`  | `10m`   | Reage mais rápido à sobrecarga             |
+| High Pool | `HIGH_POOL_TIME_WINDOW_EVAL` | `1h`    | Janela longa evita flutuações em nós caros |
+Esses valores podem ser configurados dinamicamente através das variáveis de ambiente supracitadas, fica a cargo do usuário definir as janelas de avaliação que mais se adequam aos seus objetivos
 
 ---
 
 ## Cooldown por Nó
 
-Após uma migração (criação do nó destino), há um período de cooldown para evitar *ping-pong* entre pools:
+Após uma migração (criação do nó destino), há um período de cooldown para evitar *ping-pong* entre pools - trashing:
 
 ```typescript
 isNodeInCooldown(node): boolean {
@@ -92,7 +91,7 @@ Nós em cooldown são **ignorados** na avaliação.
 ```
 1. Avalia HIGH POOL (nós caros):
    - Ordena por score CRESCENTE (menor uso primeiro)
-   - Se algum nó tem score ≤ LOW_SCORE_THRESHOLD (0.35):
+   - Se algum nó tem score ≤ LOW_SCORE_THRESHOLD:
      → Seleciona o de menor score
      → Inicia migração high→low
      → Encerra avaliação deste tick
@@ -100,7 +99,7 @@ Nós em cooldown são **ignorados** na avaliação.
 2. Se não encontrou candidato no high pool:
    Avalia LOW POOL (nós baratos):
    - Ordena por score DECRESCENTE (maior uso primeiro)
-   - Se algum nó tem score ≥ HIGH_SCORE_THRESHOLD (0.6):
+   - Se algum nó tem score ≥ HIGH_SCORE_THRESHOLD:
      → Seleciona o de maior score
      → Inicia migração low→high
 ```
@@ -113,26 +112,27 @@ Mesma lógica, mas **invertida**: avalia low pool primeiro (busca por sobrecarga
 
 ## Diagrama de Decisão
 
+
 ```
 evaluateCluster()
 │
 ├── policy = prioritizeCost
 │   │
-│   ├── [HIGH POOL] scores ≤ 0.35?
+│   ├── [HIGH POOL] scores ≤ LOW_SCORE_THRESHOLD?
 │   │   ├── SIM → migrate high→low  (menor score vence)
 │   │   └── NÃO ↓
 │   │
-│   └── [LOW POOL] scores ≥ 0.6?
+│   └── [LOW POOL] scores ≥ HIGH_SCORE_THRESHOLD?
 │       ├── SIM → migrate low→high  (maior score vence)
 │       └── NÃO → nenhuma ação
 │
 └── policy = prioritizePerformance
     │
-    ├── [LOW POOL] scores ≥ 0.6?
+    ├── [LOW POOL] scores ≥ HIGH_SCORE_THRESHOLD?
     │   ├── SIM → migrate low→high
     │   └── NÃO ↓
     │
-    └── [HIGH POOL] scores ≤ 0.35?
+    └── [HIGH POOL] scores ≤ LOW_SCORE_THRESHOLD?
         ├── SIM → migrate high→low
         └── NÃO → nenhuma ação
 ```

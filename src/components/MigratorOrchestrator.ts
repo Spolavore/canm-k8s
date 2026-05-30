@@ -19,6 +19,7 @@ import type {
     ExpandedNodeScore,
     MigrationDirection,
     MigrationPipelineResponse,
+    ReconciliationLogEntry,
 } from '@/types';
 import { ANNOTATION, logger } from '@/utils';
 import { convertToMs } from '@/utils/date';
@@ -148,15 +149,32 @@ class MigratorOrchestrator {
         nodeCreated?: string,
     ) {
         logger(COMPONENT, `Iniciating compensating process for stage: ${stage}`);
+        const timestamp = new Date().toISOString();
         switch (stage) {
             case 'addition':
                 try {
                     this.nodeMigrator.removeNodeAnnotation(currentNode.node, 'MIGRATION_STAGE');
+                    this.auditLogger.logCompensation({
+                        timestamp,
+                        sourceNode: currentNode.node,
+                        direction,
+                        failedStage: stage,
+                        action: 'annotation_cleared',
+                        outcome: 'success',
+                    });
                 } catch (error) {
                     logger(
                         COMPONENT,
                         `Couldn't remove addition anotation from node ${currentNode.node}, error: ${error}`,
                     );
+                    this.auditLogger.logCompensation({
+                        timestamp,
+                        sourceNode: currentNode.node,
+                        direction,
+                        failedStage: stage,
+                        action: 'annotation_cleared',
+                        outcome: 'failed',
+                    });
                     return;
                 }
                 break;
@@ -178,6 +196,15 @@ class MigratorOrchestrator {
                     direction === 'high->low'
                         ? this.nodeMigrator.removeNodeLowNodePool(nodeCreated)
                         : this.nodeMigrator.removeNodeHighNodePool(nodeCreated);
+                    this.auditLogger.logCompensation({
+                        timestamp,
+                        sourceNode: currentNode.node,
+                        destinationNode: nodeCreated,
+                        direction,
+                        failedStage: stage,
+                        action: 'uncordoned_dest_deleted',
+                        outcome: 'success',
+                    });
                 } catch (error) {
                     logger(
                         COMPONENT,
@@ -185,12 +212,29 @@ class MigratorOrchestrator {
                         'error',
                     );
                     this.nodeMigrator.annotateNode(nodeCreated, 'STATE', 'pending-removal');
+                    this.auditLogger.logCompensation({
+                        timestamp,
+                        sourceNode: currentNode.node,
+                        destinationNode: nodeCreated,
+                        direction,
+                        failedStage: stage,
+                        action: 'dest_marked_pending_removal',
+                        outcome: 'failed',
+                    });
                 }
                 break;
             case 'removing':
                 // No action: source already has MIGRATION_STAGE=removing from pipeline,
                 // which lets reconciliation pick it up via case C and retry the removal.
                 logger(COMPONENT, `Removing failure: delegating retry to reconciliation`);
+                this.auditLogger.logCompensation({
+                    timestamp,
+                    sourceNode: currentNode.node,
+                    direction,
+                    failedStage: stage,
+                    action: 'delegated_to_reconciliation',
+                    outcome: 'success',
+                });
                 break;
 
             default:
@@ -260,7 +304,7 @@ class MigratorOrchestrator {
         } else {
             logger(COMPONENT, `Migration of ${node.node} failed after ${(durationMs / 1000).toFixed(1)}s`, 'error');
         }
-        this.auditLogger.log({
+        this.auditLogger.logMigration({
             timestamp: new Date(start).toISOString(),
             durationMs,
             direction,
@@ -373,6 +417,10 @@ class MigratorOrchestrator {
                 this.nodeMigrator.annotateNode(node.name, 'LAST_RECONCILIATION', new Date().toISOString());
             };
 
+            const logReconciliation = (entry: Omit<ReconciliationLogEntry, 'timestamp'>) => {
+                this.auditLogger.logReconciliation({ timestamp: new Date().toISOString(), ...entry });
+            };
+
             const removeFromPool = (node: KubernetesNodes): boolean => {
                 try {
                     node.nodePool === this.migrationConfig.highNodePool
@@ -386,7 +434,9 @@ class MigratorOrchestrator {
             };
 
             for (const node of unreconciledNodes) {
-                if (isInCooldown(node)) continue;
+                if (isInCooldown(node)) {
+                    continue;
+                }
 
                 const state = node.annotations[ANNOTATION.STATE] as CanmNodeState | undefined;
                 const stage = node.annotations[ANNOTATION.MIGRATION_STAGE] as PipelineStage | undefined;
@@ -399,6 +449,7 @@ class MigratorOrchestrator {
                     logger(COMPONENT, `Unmapped CANM node ${node.name}, deleting`);
                     const ok = removeFromPool(node);
                     heavyActionExecuted = true;
+                    logReconciliation({ node: node.name, action: 'deleted', outcome: ok ? 'success' : 'failed' });
                     if (!ok) markReconciled(node);
                     continue;
                 }
@@ -424,12 +475,24 @@ class MigratorOrchestrator {
                         `Node ${node.name} was already migrated, the source was deleted: updating node state to managed`,
                     );
                     this.nodeMigrator.annotateNode(node.name, 'STATE', 'managed');
+                    logReconciliation({
+                        node: node.name,
+                        nodeState: state,
+                        action: 'promoted_to_managed',
+                        outcome: 'success',
+                    });
                     continue;
                 } else if (state == 'created' || state === 'pending-removal') {
                     if (heavyActionExecuted) continue;
                     logger(COMPONENT, `CANM node ${node.name} (state=${state}) is orphan, deleting`);
                     const ok = removeFromPool(node);
                     heavyActionExecuted = true;
+                    logReconciliation({
+                        node: node.name,
+                        nodeState: state,
+                        action: 'deleted',
+                        outcome: ok ? 'success' : 'failed',
+                    });
                     if (!ok) markReconciled(node);
                     continue;
                 }
@@ -440,6 +503,12 @@ class MigratorOrchestrator {
                         // METADATA: clear stale annotation
                         logger(COMPONENT, `Source ${node.name} stuck at addition, clearing stage`);
                         const ok = this.nodeMigrator.removeNodeAnnotation(node.name, 'MIGRATION_STAGE');
+                        logReconciliation({
+                            node: node.name,
+                            pipelineStage: stage,
+                            action: 'stage_cleared',
+                            outcome: ok ? 'success' : 'failed',
+                        });
                         if (!ok) markReconciled(node);
                         break;
                     }
@@ -458,11 +527,23 @@ class MigratorOrchestrator {
                         }
 
                         if (!uncordonOk) {
+                            logReconciliation({
+                                node: node.name,
+                                pipelineStage: stage,
+                                action: 'stage_cleared',
+                                outcome: 'failed',
+                            });
                             markReconciled(node);
                             break;
                         }
 
                         const cleanOk = this.nodeMigrator.removeNodeAnnotation(node.name, 'MIGRATION_STAGE');
+                        logReconciliation({
+                            node: node.name,
+                            pipelineStage: stage,
+                            action: 'stage_cleared',
+                            outcome: cleanOk ? 'success' : 'failed',
+                        });
                         if (!cleanOk) markReconciled(node);
                         break;
                     }
@@ -472,6 +553,12 @@ class MigratorOrchestrator {
                         logger(COMPONENT, `Source ${node.name} stuck at removing, retrying`);
                         const ok = removeFromPool(node);
                         heavyActionExecuted = true;
+                        logReconciliation({
+                            node: node.name,
+                            pipelineStage: stage,
+                            action: 'retry_removal',
+                            outcome: ok ? 'success' : 'failed',
+                        });
                         if (!ok) markReconciled(node);
                         break;
                     }

@@ -52,7 +52,7 @@ export type MigrationConfig = {
 
 export type MigrationDirection = 'high->low' | 'low->high';
 
-export type AuditLogEntry = {
+export type MigrationLogEntry = {
     timestamp: string;
     durationMs: number;
     direction: MigrationDirection;
@@ -63,6 +63,33 @@ export type AuditLogEntry = {
     policy: MigrationPolicies;
     status: MigrationStatus;
 };
+
+export type CompensationLogEntry = {
+    timestamp: string;
+    sourceNode: string;
+    destinationNode?: string;
+    direction: MigrationDirection;
+    failedStage: PipelineStage;
+    action: CompensationAction;
+    outcome: 'success' | 'failed';
+};
+
+type CompensationAction =
+    | 'annotation_cleared'
+    | 'uncordoned_dest_deleted'
+    | 'dest_marked_pending_removal'
+    | 'delegated_to_reconciliation';
+
+export type ReconciliationLogEntry = {
+    timestamp: string;
+    node: string;
+    nodeState?: CanmNodeState;
+    pipelineStage?: PipelineStage;
+    action: ReconciliationAction;
+    outcome: 'success' | 'failed';
+};
+
+type ReconciliationAction = 'deleted' | 'promoted_to_managed' | 'stage_cleared' | 'retry_removal';
 
 // Which pipeline step a migration was on — used in MigrationPipelineResponse and compensate(stage)
 export type PipelineStage = 'addition' | 'draining' | 'removing' | 'conclued';

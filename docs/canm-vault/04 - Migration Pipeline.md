@@ -27,7 +27,7 @@ O estado da migração é persistido como **annotations** no recurso `Node` do K
 |------------|-------------------|-------------|
 | `canm.io/state` | `created` / `managed` | Estado do ciclo de vida do nó |
 
-**Observação:** Nós criados pelo CANM sempre têm prefixo `gke-canm-` no nome.
+**Observação:** Nós criados pelo CANM sempre têm prefixo `gke-canm-` no nome para facilitar a rastreabilidade e evidenciar as ações tomadas pelo mecanismo.
 
 ---
 

@@ -11,6 +11,4 @@ removendo metrica de rede-> nao houve ganhos significativos
 
 Comprar dominio canm.io
 
-verificar last reconciliation try
-
 Implementar um simulador para efetuar os testes do canm

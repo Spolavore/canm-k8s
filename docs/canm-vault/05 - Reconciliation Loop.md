@@ -14,7 +14,7 @@ O [[04 - Migration Pipeline]] pode falhar em qualquer etapa. Quando isso acontec
 [tick] → reconcilePendingMigrations() → [se OK] evaluateCluster()
 ```
 
-Se a reconciliação ainda tem trabalho a fazer (retornou `false`), a avaliação é **pulada** nesse tick.
+Se a reconciliação ainda tem trabalho a fazer ou alguma ação alterou o estado do cluster de forma crítica ( como deleção de um nó), a avaliação é **pulada** nesse tick.
 
 ---
 
