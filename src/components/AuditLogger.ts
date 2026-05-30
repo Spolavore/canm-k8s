@@ -1,20 +1,38 @@
 import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { AuditLogEntry } from '@/types';
+import type { MigrationLogEntry, CompensationLogEntry, ReconciliationLogEntry } from '@/types';
 
 class AuditLogger {
-    private filePath: string;
+    private migrationFilePath: string;
+    private compensationFilePath: string;
+    private reconciliationFilePath: string;
 
-    constructor(filePath: string = './migrations.jsonl') {
-        this.filePath = filePath;
-        const dir = dirname(filePath);
-        if (dir !== '.' && !existsSync(dir)) {
-            mkdirSync(dir, { recursive: true });
+    constructor(
+        migrationFilePath: string = './migrations.jsonl',
+        compensationFilePath: string = './compensations.jsonl',
+        reconciliationFilePath: string = './reconciliations.jsonl',
+    ) {
+        this.migrationFilePath = migrationFilePath;
+        this.compensationFilePath = compensationFilePath;
+        this.reconciliationFilePath = reconciliationFilePath;
+        for (const path of [migrationFilePath, compensationFilePath, reconciliationFilePath]) {
+            const dir = dirname(path);
+            if (dir !== '.' && !existsSync(dir)) {
+                mkdirSync(dir, { recursive: true });
+            }
         }
     }
 
-    log(entry: AuditLogEntry): void {
-        appendFileSync(this.filePath, JSON.stringify(entry) + '\n', 'utf-8');
+    logMigration(entry: MigrationLogEntry): void {
+        appendFileSync(this.migrationFilePath, JSON.stringify(entry) + '\n', 'utf-8');
+    }
+
+    logCompensation(entry: CompensationLogEntry): void {
+        appendFileSync(this.compensationFilePath, JSON.stringify(entry) + '\n', 'utf-8');
+    }
+
+    logReconciliation(entry: ReconciliationLogEntry): void {
+        appendFileSync(this.reconciliationFilePath, JSON.stringify(entry) + '\n', 'utf-8');
     }
 }
 

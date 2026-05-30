@@ -8,12 +8,7 @@
 
 ## Problema que Resolve
 
-Clusters Kubernetes frequentemente têm workloads dinâmicos: períodos de alta demanda alternam com períodos de baixo uso. Em clusters GKE com dois tipos de node pool:
-
-- **High Pool** — máquinas de alta performance e custo elevado (ex: `n2-standard-8`)
-- **Low Pool** — máquinas mais baratas, compartilhadas ou preemptíveis (ex: `e2-medium`)
-
-Sem automação, nós do pool caro ficam ligados e pagando mesmo quando subutilizados. O CANM resolve isso automaticamente.
+Clusters Kubernetes frequentemente têm workloads dinâmicos: períodos de alta demanda alternam com períodos de baixo uso. O mecanismo é capaz de detectar nós com baixa utilização de recursos e migrar para tier mais econômicos, o inverso também se aplica. 
 
 ---
 
@@ -26,7 +21,7 @@ Nó no high pool com score baixo → Move para o low pool (economiza)
 Nó no low pool com score alto   → Move para o high pool (garante performance)
 ```
 
-O sistema cria o nó destino, drena os pods do nó origem (que são reagendados automaticamente pelo scheduler do Kubernetes), e então remove o nó origem. Se o cluster do Kubernetes for bem configurado com redundância de Pods e políticas de PDB, a migração ocorre sem impactar negativamente métricas a aplicação.
+O sistema cria o nó destino, drena os pods do nó origem (que são reagendados automaticamente pelo scheduler do Kubernetes), e então remove o nó origem. Se o cluster do Kubernetes for bem configurado com redundância de Pods e políticas de PDB, a migração ocorre sem impactar negativamente métricas de qualidade de serviço como indisponibilidade.
 
 ---
 

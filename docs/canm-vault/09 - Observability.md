@@ -1,8 +1,18 @@
 # Observability — Logs e Monitoramento
 
-## Arquivo de Auditoria (`migrations.jsonl`)
+O CANM persiste três arquivos de auditoria em formato **JSONL** (uma linha JSON por entrada) na raiz do projeto:
 
-Cada migração concluída (com sucesso ou falha) é registrada em `migrations.jsonl` na raiz do projeto, em formato **JSONL** (uma linha JSON por entrada).
+| Arquivo | O que registra |
+|---------|---------------|
+| `migrations.jsonl` | Cada migração iniciada (sucesso ou falha) |
+| `compensations.jsonl` | Cada acionamento do mecanismo de compensação |
+| `reconciliations.jsonl` | Cada ação executada pela reconciliação |
+
+---
+
+## `migrations.jsonl`
+
+Cada migração concluída (com sucesso ou falha) é registrada, em formato **JSONL** (uma linha JSON por entrada).
 
 ### Schema
 
@@ -54,6 +64,86 @@ cat migrations.jsonl | jq 'select(.direction == "high->low" and .status == "pass
 
 # Distribuição de scores ao migrar
 cat migrations.jsonl | jq '[.score] | sort | {min: min, max: max, avg: (add/length)}'
+```
+
+---
+
+## `compensations.jsonl`
+
+Registra cada acionamento do mecanismo de compensação — ou seja, toda vez que uma etapa do pipeline falha e o sistema tenta desfazer o que foi feito.
+
+### Schema
+
+```typescript
+{
+  timestamp:       string,   // ISO8601 — quando a compensação ocorreu
+  sourceNode:      string,   // nó origem da migração que falhou
+  destinationNode?: string,  // nó destino (presente apenas quando failedStage = "draining")
+  direction:       "high->low" | "low->high",
+  failedStage:     "addition" | "draining" | "removing",
+  action:          "annotation_cleared"           // addition: annotation MIGRATION_STAGE removida do source
+                 | "uncordoned_dest_deleted"       // draining: source uncordoned e destination deletado
+                 | "dest_marked_pending_removal"   // draining: destination não pôde ser deletado, marcado para reconciliação
+                 | "delegated_to_reconciliation",  // removing: nenhuma ação imediata, annotation persiste para retry
+  outcome:         "success" | "failed"
+}
+```
+
+### Queries Úteis
+
+```bash
+# Todas as compensações com falha
+cat compensations.jsonl | jq 'select(.outcome == "failed")'
+
+# Compensações por etapa que falhou
+cat compensations.jsonl | jq -s 'group_by(.failedStage) | map({stage: .[0].failedStage, count: length})'
+
+# Destinations que ficaram como pending-removal (requerem atenção da reconciliação)
+cat compensations.jsonl | jq 'select(.action == "dest_marked_pending_removal")'
+
+# Últimas 10 compensações
+tail -n 10 compensations.jsonl | jq .
+```
+
+---
+
+## `reconciliations.jsonl`
+
+Registra cada ação executada pelo loop de reconciliação — uma entrada por nó processado por tick.
+
+### Schema
+
+```typescript
+{
+  timestamp:      string,  // ISO8601 — quando a ação foi executada
+  node:           string,  // nome do nó reconciliado
+  nodeState?:     "created" | "managed" | "pending-removal",  // estado CANM do nó (presente no Case B)
+  pipelineStage?: "addition" | "draining" | "removing",        // stage em que o nó estava preso (presente no Case C)
+  action:         "deleted"            // nó removido do cluster (orphan, state não-terminal ou retry removal)
+                | "promoted_to_managed" // destination promovido a managed (source removido ou em stage removing)
+                | "stage_cleared"      // annotation MIGRATION_STAGE removida do source (addition ou draining)
+                | "retry_removal",     // remoção do source retentada (stage removing)
+  outcome:        "success" | "failed"
+}
+```
+
+### Queries Úteis
+
+```bash
+# Ações com falha (indicam que o nó ainda precisa de atenção)
+cat reconciliations.jsonl | jq 'select(.outcome == "failed")'
+
+# Distribuição de ações por tipo
+cat reconciliations.jsonl | jq -s 'group_by(.action) | map({action: .[0].action, count: length})'
+
+# Nós que foram promovidos a managed (migrações recuperadas pela reconciliação)
+cat reconciliations.jsonl | jq 'select(.action == "promoted_to_managed")'
+
+# Nós com retry de remoção — útil para identificar sources persistentemente presos
+cat reconciliations.jsonl | jq 'select(.action == "retry_removal")' | jq -s 'group_by(.node) | map({node: .[0].node, retries: length, lastOutcome: .[-1].outcome})'
+
+# Todas as ações sobre um nó específico
+cat reconciliations.jsonl | jq 'select(.node == "<nome-do-no>")'
 ```
 
 ---
@@ -135,7 +225,10 @@ curl -s "http://<PROMETHEUS_URL>/api/v1/label/job/values" | jq '.data[]'
 | Migrações sempre falham | Permissões GCP? Versão do kubectl? Logs de erro detalhados |
 | Source preso em `stage=draining` | PDB impedindo evicção? `kubectl describe node <source>` |
 | Nó `gke-canm-*` existe mas state ≠ `managed` | Reconciliação deve limpar — se persistir, verificar permissões gcloud |
-| `migrations.jsonl` crescendo muito | Normal — arquivo não tem rotação automática; rotacionar manualmente se necessário |
+| Compensações repetidas no mesmo nó | `compensations.jsonl` — verificar se `outcome=failed` está persistindo |
+| Reconciliação retentando remoção várias vezes | `reconciliations.jsonl` com `action=retry_removal` e `outcome=failed` — verificar permissões gcloud |
+| Destination deletado inesperadamente | `reconciliations.jsonl` com `action=deleted` — cruzar com `compensations.jsonl` para ver se houve falha de drain anterior |
+| Arquivos de log crescendo muito | Normal — nenhum dos três arquivos tem rotação automática; rotacionar manualmente se necessário |
 
 ---
 
