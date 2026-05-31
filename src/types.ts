@@ -46,8 +46,12 @@ export type MigrationConfig = {
     checkInterval?: string;
     highNodeCoolDown?: string;
     lowNodeCoolDown?: string;
+    canmEvalCoolDown?: string;
     lowPoolTimeWindowEval?: string;
     highPoolTimeWindowEval?: string;
+    drainPaced?: boolean;
+    drainBatchTimeout?: string;
+    drainBatchSize?: number;
 };
 
 export type MigrationDirection = 'high->low' | 'low->high';

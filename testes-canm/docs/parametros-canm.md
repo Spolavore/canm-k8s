@@ -46,8 +46,9 @@ CPU do nó como fração 0–1**, medida como `rate(...)` **médio sobre uma jan
 | `LOW_SCORE_THRESHOLD` | `0.25` | Margem anti-flapping: `LOW × 1,5 < HIGH` |
 | `LOW_POOL_TIME_WINDOW_EVAL` | `3m` | Scale-up responsivo (reage à carga subindo) |
 | `HIGH_POOL_TIME_WINDOW_EVAL` | `10m` | Scale-down conservador (não larga em vale curto) |
-| `LOW_NODE_COOL_DOWN` | `8m` | = janela low (3m) + estabilização (~4m) + margem |
-| `HIGH_NODE_COOL_DOWN` | `14m` | = janela high (10m) + estabilização (~4m) |
+| `LOW_NODE_COOL_DOWN` | `15m` | = janela low (3m) + estabilização (~12m) |
+| `HIGH_NODE_COOL_DOWN` | `22m` | = janela high (10m) + estabilização (~12m) |
+| `CANM_EVAL_COOLDOWN` | `2m` | Janela de assentamento entre avaliações (anti-burst pós-migração) |
 | `CHECK_INTERVAL` | `15s` | Casa com a granularidade do scrape de métricas |
 | `POLICY` | `prioritizeCost` | Objetivo do experimento: economia em baixa carga |
 | `SHOW_DECISIONS_LOGS` | `TRUE` | Rastro de decisão para reconstruir a linha do tempo |
@@ -136,24 +137,33 @@ cooldown só protege nós recém-criados de reversão; adicionar mais nós ao po
 
 ---
 
-## 5. Cooldowns: `LOW=8m`, `HIGH=14m`
+## 5. Cooldowns: `LOW=15m`, `HIGH=22m`
 
 Fórmula: **`cooldown ≥ janela_do_pool + tempo_de_estabilização`**. Um nó recém-criado
 é reavaliado pela decisão oposta usando a janela daquele pool; o score dele só fica
 representativo depois que o nó fica Ready, recebe tráfego **e** a janela enche de
 dados pós-tráfego.
 
-O **tempo de estabilização (~4 min)** vem de `workload/cpu-no-drain.csv`: ao drenar
-um nó, o novo nó levou ~4 min do drain até servir tráfego de forma estável.
+O **tempo de estabilização (~12 min)** foi medido na execução `pdb-only`
+(2026-05-30, `canm/pdb-only/canm-cpu-usage.csv`): todo nó recém-criado dispara um
+spike de partida de **93–118% de CPU** e só assenta abaixo de 50% após **~10–12 min**
+(ver [plano-ajustes-canm-primeira-run.md](plano-ajustes-canm-primeira-run.md), achado A1). Esse valor **corrige**
+a estimativa inicial de ~4 min derivada de `workload/cpu-no-drain.csv`, que era baixa
+demais para a carga de produção real.
 
 | Variável | Cálculo | Valor |
 |---|---|---|
-| `LOW_NODE_COOL_DOWN` | janela low (3m) + estabilização (~4m) + margem | **8m** |
-| `HIGH_NODE_COOL_DOWN` | janela high (10m) + estabilização (~4m) | **14m** |
+| `LOW_NODE_COOL_DOWN` | janela low (3m) + estabilização (~12m) | **15m** |
+| `HIGH_NODE_COOL_DOWN` | janela high (10m) + estabilização (~12m) | **22m** |
 
 A assimetria das janelas propaga-se coerentemente para os cooldowns: janela high
 longa → cooldown high longo (lento para devolver capacidade); janela low curta →
 cooldown low curto (responsivo).
+
+> **Por que ~4m falhava:** com `LOW=8m`, um nó criado durante um `high->low` saía do
+> cooldown aos 8 min ainda no spike de partida (~12 min para assentar). A execução
+> `pdb-only` registrou exatamente isso: um `low->high` de score **0,99 num nó de 9 min
+> a 100% de CPU** — flap de warmup. `LOW=15m` cobre a estabilização real e elimina o caso.
 
 ---
 
@@ -170,6 +180,41 @@ O objetivo do experimento é **economia em janelas de baixo tráfego**. Esta pol
 avalia o scale-down primeiro, alinhada à motivação do CANM (orientado a custo,
 reativo a métricas de utilização). A alternativa `prioritizePerformance` inverteria
 a ordem (prioriza subir).
+
+### `CANM_EVAL_COOLDOWN='2m'` — janela de assentamento entre avaliações
+Tempo mínimo entre o **fim de uma avaliação** e a próxima
+([`MigratorOrchestrator.start`](../../src/components/MigratorOrchestrator.ts#L580)).
+Foi adicionado após a execução `pdb-only` mostrar que, sem ele, o gap entre o fim de
+uma migração e o início da próxima era de **~36 s** — rajadas de migração quase
+contíguas (ver [plano-ajustes-canm-primeira-run.md](plano-ajustes-canm-primeira-run.md),
+achado 1.4).
+
+**O que ele protege (e o que NÃO):** o nó recém-criado já é protegido pelo cooldown
+dele (`*_NODE_COOL_DOWN`, contado do `creationTimestamp`) — não pode ser repescado
+aos 2 min de jeito nenhum. A janela serve para **anti-burst num *outro* nó**: evita que
+um nó diferente, que absorveu a carga redistribuída no drain, dispare uma migração num
+spike transitório logo após a anterior. Não deriva dos ~12 min de estabilização (isso
+é papel do cooldown).
+
+**Por que 2 min e mecânica:** o `drain` é síncrono (`execSync` bloqueia o tick), então
+durante a migração (~10 min) nenhuma nova avaliação ocorre; a janela só agrega valor
+*depois* do término. O carimbo de tempo é feito após **toda** `evaluateCluster`, não só
+quando há migração — logo, em ociosidade a avaliação passa a ocorrer a cada 2 min em vez
+de a cada `CHECK_INTERVAL` (15 s). Tradeoff tolerável sob a janela low de 3 min.
+
+> **Ressalvas:** `2m` é valor inicial, não derivado — pode ser **curto** para o
+> transitório de nós irmãos (que podem levar mais que 2 min a assentar); calibrar com
+> os dados da próxima run. Default no código: `5m`
+> ([`MigratorOrchestrator` constructor](../../src/components/MigratorOrchestrator.ts#L53)).
+
+### Drain com `--timeout=600s`
+O `drain` do CANM passou a usar `--timeout=600s` (10 min)
+([`KubernetesClient.drain`](../../src/lib/KubernetesClient.ts#L63)). Antes não havia
+timeout: com PDB estrito (`maxUnavailable=1`), se um workload estivesse degradado
+(`ALLOWED-DISRUPTIONS=0`) o drain podia **travar indefinidamente**. Com o teto de 10 min,
+um drain que não conclui falha de forma limpa e cai na compensação do pipeline em vez de
+prender o tick. **A unidade é obrigatória** (`600s`/`10m`): `kubectl` rejeita `600` puro
+(`missing unit in duration`).
 
 ---
 
@@ -204,3 +249,15 @@ infraestrutura, sem valor a calibrar.
 
 3. **Razão 1,5× é de primeira ordem.** A relação de CPU low/high vem da média dos
    cenários; a redistribuição de pods pelo scheduler não é 1:1.
+
+---
+
+## 9. Documentos relacionados (tuning & análise do CANM)
+
+- [design-experimental.md](design-experimental.md) — desenho dos grupos de teste.
+- [plano-ajustes-canm-primeira-run.md](plano-ajustes-canm-primeira-run.md) — 1ª run: warmup-flap,
+  re-derivação dos cooldowns (Milestone 1) e achados arquiteturais.
+- [plano-ajustes-canm-segunda-run.md](plano-ajustes-canm-segunda-run.md) — relatório das runs
+  `pdb+gracefull`: diagnóstico do **erro pós-migração** (cliff de finalização + warmup sincronizado).
+- [roadmap-drain-pausado.md](roadmap-drain-pausado.md) — roadmap de implementação do **drain
+  pausado/incremental gateado em CPU** (fix do erro pós-migração).

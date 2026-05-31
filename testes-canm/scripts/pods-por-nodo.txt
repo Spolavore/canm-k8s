@@ -1,179 +1,179 @@
 Relatório de Pods por Nodo
-Gerado em: 2026-05-30 15:57:59
+Gerado em: 2026-05-31 04:59:43
 Contexto: gke_ecdt-produto_us-central1-a_beta
 ============================================================
 
-NODO: gke-beta-pool-beta-high-0de43245-4bf5
+NODO: gke-beta-pool-beta-high-0de43245-4m4c
 ------------------------------------------------------------
-  - [Running] admin-novo/ecdt-admin-v2-back-beta-55b75bd666-79fq7
-  - [Running] admin-novo/ecdt-admin-v2-back-beta-55b75bd666-w9c7h
-  - [Running] custom-metrics/node-exporter-wwq68
-  - [Running] default/ecdt-admin-beta-5d847499cb-djtts
-  - [Running] default/ecdt-api-beta-cfb7b7497-4qwqw
-  - [Running] default/ecdt-api-beta-cfb7b7497-ffsdc
-  - [Running] default/ecdt-billing-beta-6fc7cc559-r4cgg
-  - [Running] default/ecdt-busca-beta-5d4868b8d9-2882b
-  - [Running] default/ecdt-busca-inteligente-api-beta-5d94f8b87f-9sgg7
-  - [Running] default/ecdt-busca-inteligente-api-beta-5d94f8b87f-lcj4c
-  - [Running] default/ecdt-chat-front-beta-88dc9844f-mhjl2
-  - [Running] default/ecdt-chat-front-beta-88dc9844f-t4dvz
-  - [Running] default/ecdt-crowdsourcing-beta-88556c9c8-4sh2g
-  - [Running] default/ecdt-econochat-back-beta-6dd77f58ff-msqk6
-  - [Running] default/ecdt-econochat-back-beta-6dd77f58ff-wqxlg
-  - [Running] default/ecdt-email-finder-beta-69965d4d5f-8n66k
-  - [Running] default/ecdt-exact-sales-beta-6748469fbf-nt9pj
-  - [Running] default/ecdt-exportacao-v2-beta-58795d7cf6-5xtz5
-  - [Running] default/ecdt-gateway-beta-7f9cf4b8df-cmbxs
-  - [Running] default/ecdt-gateway-beta-7f9cf4b8df-v9mcx
-  - [Running] default/ecdt-gateway-v2-beta-65549cb79d-4zng5
-  - [Running] default/ecdt-historico-v2-beta-657c6795cc-5lfr7
-  - [Running] default/ecdt-historico-v2-beta-657c6795cc-77nmf
-  - [Running] default/ecdt-logs-beta-7f5957f758-6h2hn
-  - [Running] default/ecdt-logs-beta-7f5957f758-rdpgl
-  - [Running] default/ecdt-logstash-ms-beta-59b94675c7-gg9ch
-  - [Running] default/ecdt-oauth2-beta-599758bc77-4zvbw
-  - [Running] default/ecdt-phonelookup-beta-84b7c668f8-rcn7m
-  - [Running] default/ecdt-plat-beta-6cccc65986-ckrsk
-  - [Running] default/ecdt-plat-beta-6cccc65986-szv9w
-  - [Running] default/ecdt-plat-vue3-beta-5b6c86999b-lznvp
-  - [Running] default/ecdt-qualificacao-beta-657b86847c-9g6bq
-  - [Running] default/ecdt-tags-beta-6bcfdd46ff-kh5jg
-  - [Running] default/ecdt-user-v2-beta-64d5684b76-n6cj8
-  - [Running] default/ecdt-webhook-beta-67bc9bd54c-669gc
-  - [Running] gmp-system/collector-hgd87
-  - [Running] kube-system/fluentbit-gke-7hrsk
-  - [Running] kube-system/gke-metadata-server-7ngnb
-  - [Running] kube-system/gke-metrics-agent-mtp5t
-  - [Running] kube-system/konnectivity-agent-766d98564d-m4clg
-  - [Running] kube-system/kube-proxy-gke-beta-pool-beta-high-0de43245-4bf5
-  - [Running] kube-system/netd-9598n
-  - [Running] kube-system/pdcsi-node-pdz49
+  - [Running] admin-novo/ecdt-admin-v2-back-beta-777d99c578-nbhpg
+  - [Running] custom-metrics/node-exporter-wsgtx
+  - [Running] default/ecdt-admin-beta-7b886dccfb-6mnm8
+  - [Running] default/ecdt-admin-beta-7b886dccfb-7x4dd
+  - [Running] default/ecdt-api-beta-89fddf95-fgkpb
+  - [Running] default/ecdt-api-beta-89fddf95-klxch
+  - [Running] default/ecdt-billing-beta-787dcd49-8gsb6
+  - [Running] default/ecdt-billing-beta-787dcd49-skt7f
+  - [Running] default/ecdt-busca-beta-67cbff75f-q6rd5
+  - [Running] default/ecdt-busca-beta-67cbff75f-v5q85
+  - [Running] default/ecdt-busca-inteligente-api-beta-5d76ddbc6f-hh6nk
+  - [Running] default/ecdt-chat-front-beta-587448c5d7-xmzt9
+  - [Running] default/ecdt-crowdsourcing-beta-5cd449d594-b8jf9
+  - [Running] default/ecdt-crowdsourcing-beta-5cd449d594-f6mkr
+  - [Running] default/ecdt-econochat-back-beta-77bc649b57-4wrj5
+  - [Running] default/ecdt-email-finder-beta-86bc94b545-rpc8q
+  - [Running] default/ecdt-email-finder-beta-86bc94b545-xcvf7
+  - [Running] default/ecdt-exact-sales-beta-757c94496-4c6zz
+  - [Running] default/ecdt-exportacao-v2-beta-f56c5b856-hv4sz
+  - [Running] default/ecdt-exportacao-v2-beta-f56c5b856-pr8jz
+  - [Running] default/ecdt-gateway-beta-585cd8fc79-p6nl4
+  - [Running] default/ecdt-gateway-beta-585cd8fc79-s696f
+  - [Running] default/ecdt-gateway-v2-beta-799f7ff88b-4j9cf
+  - [Running] default/ecdt-historico-v2-beta-6fcdf7c9f-2zcvq
+  - [Running] default/ecdt-historico-v2-beta-6fcdf7c9f-vph4p
+  - [Running] default/ecdt-logs-beta-f68dc9566-mvrrz
+  - [Running] default/ecdt-logstash-ms-beta-5784d459c7-9lw66
+  - [Running] default/ecdt-oauth2-beta-6f7c6f9c59-qqs5g
+  - [Running] default/ecdt-phonelookup-beta-596cf55647-nq9ss
+  - [Running] default/ecdt-plat-beta-57649c5cbb-c56hr
+  - [Running] default/ecdt-plat-vue3-beta-6cf654fd9b-qhmbh
+  - [Running] default/ecdt-plat-vue3-beta-6cf654fd9b-shmm2
+  - [Running] default/ecdt-qualificacao-beta-769c9748c9-8kjkq
+  - [Running] default/ecdt-tags-beta-6d554d99d5-xhhkd
+  - [Running] default/ecdt-user-v2-beta-7fd6689cfb-b662s
+  - [Running] default/ecdt-user-v2-beta-7fd6689cfb-scx5q
+  - [Running] default/ecdt-webhook-beta-56c9db5fd6-tj55l
+  - [Running] gmp-system/collector-dk4n2
+  - [Running] kube-system/fluentbit-gke-8zrln
+  - [Running] kube-system/gke-metadata-server-bb5hg
+  - [Running] kube-system/gke-metrics-agent-m77hg
+  - [Running] kube-system/konnectivity-agent-766d98564d-l89cq
+  - [Running] kube-system/kube-proxy-gke-beta-pool-beta-high-0de43245-4m4c
+  - [Running] kube-system/netd-4s5s4
+  - [Running] kube-system/pdcsi-node-rtzsg
+
+  Total de pods: 45
+
+NODO: gke-beta-pool-beta-high-0de43245-57qz
+------------------------------------------------------------
+  - [Running] admin-novo/ecdt-admin-v2-back-beta-777d99c578-6k68c
+  - [Running] admin-novo/ecdt-admin-v2-back-beta-777d99c578-fhcgh
+  - [Running] custom-metrics/node-exporter-l7rj5
+  - [Running] default/ecdt-admin-beta-7b886dccfb-4k944
+  - [Running] default/ecdt-api-beta-89fddf95-22k2s
+  - [Running] default/ecdt-billing-beta-787dcd49-psb8h
+  - [Running] default/ecdt-busca-beta-67cbff75f-vbf4j
+  - [Running] default/ecdt-busca-inteligente-api-beta-5d76ddbc6f-4vzmc
+  - [Running] default/ecdt-busca-inteligente-api-beta-5d76ddbc6f-6p72s
+  - [Running] default/ecdt-chat-front-beta-587448c5d7-m9q4g
+  - [Running] default/ecdt-chat-front-beta-587448c5d7-mfbp6
+  - [Running] default/ecdt-crowdsourcing-beta-5cd449d594-t64nv
+  - [Running] default/ecdt-econochat-back-beta-77bc649b57-5jxts
+  - [Running] default/ecdt-econochat-back-beta-77bc649b57-kzjkz
+  - [Running] default/ecdt-email-finder-beta-86bc94b545-gsc8m
+  - [Running] default/ecdt-exact-sales-beta-757c94496-s5rgz
+  - [Running] default/ecdt-exportacao-v2-beta-f56c5b856-mwcqp
+  - [Running] default/ecdt-gateway-beta-585cd8fc79-fpng9
+  - [Running] default/ecdt-gateway-v2-beta-799f7ff88b-2bn88
+  - [Running] default/ecdt-gateway-v2-beta-799f7ff88b-9s7cm
+  - [Running] default/ecdt-historico-v2-beta-6fcdf7c9f-t57np
+  - [Running] default/ecdt-logs-beta-f68dc9566-t967r
+  - [Running] default/ecdt-logs-beta-f68dc9566-wx8lz
+  - [Running] default/ecdt-logstash-ms-beta-5784d459c7-778vz
+  - [Running] default/ecdt-logstash-ms-beta-5784d459c7-d4dg7
+  - [Running] default/ecdt-oauth2-beta-6f7c6f9c59-54jrg
+  - [Running] default/ecdt-oauth2-beta-6f7c6f9c59-9z5sm
+  - [Running] default/ecdt-phonelookup-beta-596cf55647-82h9m
+  - [Running] default/ecdt-plat-beta-57649c5cbb-d4z8n
+  - [Running] default/ecdt-plat-vue3-beta-6cf654fd9b-99mpx
+  - [Running] default/ecdt-qualificacao-beta-769c9748c9-mj8m7
+  - [Running] default/ecdt-tags-beta-6d554d99d5-bj2rg
+  - [Running] default/ecdt-user-v2-beta-7fd6689cfb-h2jnx
+  - [Running] default/ecdt-webhook-beta-56c9db5fd6-c8k42
+  - [Running] default/ecdt-webhook-beta-56c9db5fd6-r42lw
+  - [Running] gmp-system/collector-z4pcs
+  - [Running] kube-system/fluentbit-gke-dnm5h
+  - [Running] kube-system/gke-metadata-server-gpxpn
+  - [Running] kube-system/gke-metrics-agent-hwg2h
+  - [Running] kube-system/konnectivity-agent-766d98564d-h86fv
+  - [Running] kube-system/kube-proxy-gke-beta-pool-beta-high-0de43245-57qz
+  - [Running] kube-system/netd-srvgw
+  - [Running] kube-system/pdcsi-node-f6wjb
 
   Total de pods: 43
 
-NODO: gke-beta-pool-beta-high-0de43245-9007
+NODO: gke-beta-pool-beta-high-0de43245-m685
 ------------------------------------------------------------
-  - [Running] admin-novo/ecdt-admin-v2-back-beta-55b75bd666-p77xv
-  - [Running] custom-metrics/node-exporter-mscbp
-  - [Running] default/ecdt-admin-beta-5d847499cb-j5jgr
-  - [Running] default/ecdt-api-beta-cfb7b7497-htv9t
-  - [Running] default/ecdt-billing-beta-6fc7cc559-98vpc
-  - [Running] default/ecdt-busca-beta-5d4868b8d9-x27lf
-  - [Running] default/ecdt-busca-inteligente-api-beta-5d94f8b87f-t6pvm
-  - [Running] default/ecdt-chat-front-beta-88dc9844f-hl4dk
-  - [Running] default/ecdt-crowdsourcing-beta-88556c9c8-d47x4
-  - [Running] default/ecdt-econochat-back-beta-6dd77f58ff-vlwls
-  - [Running] default/ecdt-email-finder-beta-69965d4d5f-4hs4z
-  - [Running] default/ecdt-exact-sales-beta-6748469fbf-47d96
-  - [Running] default/ecdt-exportacao-v2-beta-58795d7cf6-rgg7h
-  - [Running] default/ecdt-gateway-beta-7f9cf4b8df-htcxv
-  - [Running] default/ecdt-gateway-v2-beta-65549cb79d-4xpst
-  - [Running] default/ecdt-historico-v2-beta-657c6795cc-mgkd9
-  - [Running] default/ecdt-logs-beta-7f5957f758-wv4d7
-  - [Running] default/ecdt-logstash-ms-beta-59b94675c7-jztdm
-  - [Running] default/ecdt-logstash-ms-beta-59b94675c7-w5vqz
-  - [Running] default/ecdt-oauth2-beta-599758bc77-pnsgn
-  - [Running] default/ecdt-phonelookup-beta-84b7c668f8-b6989
-  - [Running] default/ecdt-plat-beta-6cccc65986-sphc7
-  - [Running] default/ecdt-plat-vue3-beta-5b6c86999b-jld5h
-  - [Running] default/ecdt-plat-vue3-beta-5b6c86999b-svd9f
-  - [Running] default/ecdt-qualificacao-beta-657b86847c-4wkpg
-  - [Running] default/ecdt-tags-beta-6bcfdd46ff-p8kfz
-  - [Running] default/ecdt-user-v2-beta-64d5684b76-hljgw
-  - [Running] default/ecdt-webhook-beta-67bc9bd54c-wxzgp
-  - [Running] gmp-system/collector-hr8kb
-  - [Running] kube-system/fluentbit-gke-cs8mk
-  - [Running] kube-system/gke-metadata-server-jbqqv
-  - [Running] kube-system/gke-metrics-agent-7d99k
-  - [Running] kube-system/konnectivity-agent-766d98564d-8qr4x
-  - [Running] kube-system/kube-dns-6f79b88c5f-zjlsm
-  - [Running] kube-system/kube-proxy-gke-beta-pool-beta-high-0de43245-9007
-  - [Running] kube-system/netd-qcmnw
-  - [Running] kube-system/pdcsi-node-2b8cg
+  - [Running] admin-novo/ecdt-admin-v2-back-beta-777d99c578-5kzg9
+  - [Running] custom-metrics/node-exporter-vvnmh
+  - [Running] default/ecdt-admin-beta-7b886dccfb-kl4nh
+  - [Running] default/ecdt-api-beta-89fddf95-w56mj
+  - [Running] default/ecdt-billing-beta-787dcd49-splsk
+  - [Running] default/ecdt-busca-beta-67cbff75f-47g45
+  - [Running] default/ecdt-busca-inteligente-api-beta-5d76ddbc6f-rhwlh
+  - [Running] default/ecdt-chat-front-beta-587448c5d7-7btdc
+  - [Running] default/ecdt-crowdsourcing-beta-5cd449d594-hh6lw
+  - [Running] default/ecdt-econochat-back-beta-77bc649b57-qfkl7
+  - [Running] default/ecdt-email-finder-beta-86bc94b545-b7xrb
+  - [Running] default/ecdt-exact-sales-beta-757c94496-j527s
+  - [Running] default/ecdt-exact-sales-beta-757c94496-l2bnc
+  - [Running] default/ecdt-exportacao-v2-beta-f56c5b856-42h99
+  - [Running] default/ecdt-gateway-beta-585cd8fc79-qbtt8
+  - [Running] default/ecdt-gateway-v2-beta-799f7ff88b-mxpmj
+  - [Running] default/ecdt-historico-v2-beta-6fcdf7c9f-465r8
+  - [Running] default/ecdt-logs-beta-f68dc9566-bt6sk
+  - [Running] default/ecdt-logstash-ms-beta-5784d459c7-jmnzb
+  - [Running] default/ecdt-oauth2-beta-6f7c6f9c59-wnxcj
+  - [Running] default/ecdt-phonelookup-beta-596cf55647-5fhkv
+  - [Running] default/ecdt-phonelookup-beta-596cf55647-wbgrv
+  - [Running] default/ecdt-plat-beta-57649c5cbb-2vw9w
+  - [Running] default/ecdt-plat-beta-57649c5cbb-q9pg9
+  - [Running] default/ecdt-plat-vue3-beta-6cf654fd9b-p6v5v
+  - [Running] default/ecdt-qualificacao-beta-769c9748c9-4cm46
+  - [Running] default/ecdt-qualificacao-beta-769c9748c9-c4vc5
+  - [Running] default/ecdt-tags-beta-6d554d99d5-5ds46
+  - [Running] default/ecdt-tags-beta-6d554d99d5-f88tr
+  - [Running] default/ecdt-user-v2-beta-7fd6689cfb-rb7fb
+  - [Running] default/ecdt-webhook-beta-56c9db5fd6-mf9z2
+  - [Running] gmp-system/collector-4z22b
+  - [Running] kube-system/fluentbit-gke-mjs7j
+  - [Running] kube-system/gke-metadata-server-9s4g8
+  - [Running] kube-system/gke-metrics-agent-9vlsh
+  - [Running] kube-system/konnectivity-agent-766d98564d-6phbj
+  - [Running] kube-system/kube-dns-6f79b88c5f-dv7km
+  - [Running] kube-system/kube-proxy-gke-beta-pool-beta-high-0de43245-m685
+  - [Running] kube-system/netd-fwds8
+  - [Running] kube-system/pdcsi-node-mhxpj
 
-  Total de pods: 37
+  Total de pods: 40
 
-NODO: gke-beta-pool-beta-high-0de43245-pdcs
+NODO: gke-beta-pool-beta-high-0de43245-n98j
 ------------------------------------------------------------
-  - [Running] admin-novo/ecdt-admin-v2-back-beta-55b75bd666-49654
-  - [Running] custom-metrics/node-exporter-cnz6h
-  - [Running] default/ecdt-admin-beta-5d847499cb-gsxmt
-  - [Running] default/ecdt-admin-beta-5d847499cb-q8jrx
-  - [Running] default/ecdt-api-beta-cfb7b7497-64v9c
-  - [Running] default/ecdt-billing-beta-6fc7cc559-65br5
-  - [Running] default/ecdt-billing-beta-6fc7cc559-z2tfr
-  - [Running] default/ecdt-busca-beta-5d4868b8d9-278kl
-  - [Running] default/ecdt-busca-beta-5d4868b8d9-45zrm
-  - [Running] default/ecdt-busca-inteligente-api-beta-5d94f8b87f-z96d7
-  - [Running] default/ecdt-chat-front-beta-88dc9844f-7vg2w
-  - [Running] default/ecdt-crowdsourcing-beta-88556c9c8-b29xn
-  - [Running] default/ecdt-crowdsourcing-beta-88556c9c8-m8k9z
-  - [Running] default/ecdt-econochat-back-beta-6dd77f58ff-n6dh4
-  - [Running] default/ecdt-email-finder-beta-69965d4d5f-jgvsv
-  - [Running] default/ecdt-email-finder-beta-69965d4d5f-v5z9v
-  - [Running] default/ecdt-exact-sales-beta-6748469fbf-4nq4l
-  - [Running] default/ecdt-exact-sales-beta-6748469fbf-p5vr5
-  - [Running] default/ecdt-exportacao-v2-beta-58795d7cf6-lpl4w
-  - [Running] default/ecdt-exportacao-v2-beta-58795d7cf6-q689f
-  - [Running] default/ecdt-gateway-beta-7f9cf4b8df-qrq8w
-  - [Running] default/ecdt-gateway-v2-beta-65549cb79d-7cjcb
-  - [Running] default/ecdt-gateway-v2-beta-65549cb79d-h5g75
-  - [Running] default/ecdt-historico-v2-beta-657c6795cc-7khqb
-  - [Running] default/ecdt-logs-beta-7f5957f758-qbwct
-  - [Running] default/ecdt-logstash-ms-beta-59b94675c7-q2wnd
-  - [Running] default/ecdt-oauth2-beta-599758bc77-ct4pn
-  - [Running] default/ecdt-oauth2-beta-599758bc77-x92kt
-  - [Running] default/ecdt-phonelookup-beta-84b7c668f8-bxlzs
-  - [Running] default/ecdt-phonelookup-beta-84b7c668f8-qsp8v
-  - [Running] default/ecdt-plat-beta-6cccc65986-pwkn9
-  - [Running] default/ecdt-plat-vue3-beta-5b6c86999b-sdwbc
-  - [Running] default/ecdt-qualificacao-beta-657b86847c-csb9h
-  - [Running] default/ecdt-qualificacao-beta-657b86847c-mlx9f
-  - [Running] default/ecdt-tags-beta-6bcfdd46ff-f4mrm
-  - [Running] default/ecdt-tags-beta-6bcfdd46ff-rmsnt
-  - [Running] default/ecdt-user-v2-beta-64d5684b76-94b84
-  - [Running] default/ecdt-user-v2-beta-64d5684b76-mvqtt
-  - [Running] default/ecdt-webhook-beta-67bc9bd54c-g4bsw
-  - [Running] default/ecdt-webhook-beta-67bc9bd54c-kl5kx
-  - [Running] gmp-system/collector-sngqx
-  - [Running] kube-system/fluentbit-gke-24fv7
-  - [Running] kube-system/gke-metadata-server-pp2q9
-  - [Running] kube-system/gke-metrics-agent-4x55z
-  - [Running] kube-system/konnectivity-agent-766d98564d-x2nnj
-  - [Running] kube-system/kube-proxy-gke-beta-pool-beta-high-0de43245-pdcs
-  - [Running] kube-system/netd-hktm8
-  - [Running] kube-system/pdcsi-node-ptdgk
-
-  Total de pods: 48
-
-NODO: gke-beta-pool-beta-high-0de43245-qmnf
-------------------------------------------------------------
-  - [Running] admin-novo/ecdt-admin-v2-back-beta-55b75bd666-pj92b
-  - [Running] custom-metrics/node-exporter-mbhm2
-  - [Running] default/ecdt-admin-beta-5d847499cb-ltfxc
-  - [Running] default/ecdt-api-beta-cfb7b7497-gbk69
-  - [Running] default/ecdt-billing-beta-6fc7cc559-wrjgk
-  - [Running] default/ecdt-busca-beta-5d4868b8d9-sg5nn
-  - [Running] default/ecdt-busca-inteligente-api-beta-5d94f8b87f-78f82
-  - [Running] default/ecdt-chat-front-beta-88dc9844f-lpjxj
-  - [Running] default/ecdt-crowdsourcing-beta-88556c9c8-4h9h9
-  - [Running] default/ecdt-econochat-back-beta-6dd77f58ff-d27d8
-  - [Running] default/ecdt-email-finder-beta-69965d4d5f-lf9bc
-  - [Running] default/ecdt-exact-sales-beta-6748469fbf-nsb7j
-  - [Running] default/ecdt-exportacao-v2-beta-58795d7cf6-vklc4
-  - [Running] default/ecdt-gateway-beta-7f9cf4b8df-rqz7k
-  - [Running] default/ecdt-gateway-v2-beta-65549cb79d-pjhbv
-  - [Running] default/ecdt-historico-v2-beta-657c6795cc-mzshs
-  - [Running] default/ecdt-logs-beta-7f5957f758-hzzv2
-  - [Running] default/ecdt-logstash-ms-beta-59b94675c7-db4gb
-  - [Running] default/ecdt-oauth2-beta-599758bc77-tblpj
-  - [Running] default/ecdt-phonelookup-beta-84b7c668f8-zmsvd
-  - [Running] default/ecdt-plat-beta-6cccc65986-wksc6
-  - [Running] default/ecdt-plat-vue3-beta-5b6c86999b-t8cfm
-  - [Running] default/ecdt-qualificacao-beta-657b86847c-nfpkh
-  - [Running] default/ecdt-tags-beta-6bcfdd46ff-vck28
-  - [Running] default/ecdt-user-v2-beta-64d5684b76-hssw6
-  - [Running] default/ecdt-webhook-beta-67bc9bd54c-2625g
+  - [Running] admin-novo/ecdt-admin-v2-back-beta-777d99c578-5z5g4
+  - [Running] custom-metrics/node-exporter-vvkd4
+  - [Running] default/ecdt-admin-beta-7b886dccfb-kljpk
+  - [Running] default/ecdt-api-beta-89fddf95-5s7z7
+  - [Running] default/ecdt-billing-beta-787dcd49-db7qn
+  - [Running] default/ecdt-busca-beta-67cbff75f-j2ljf
+  - [Running] default/ecdt-busca-inteligente-api-beta-5d76ddbc6f-kmvv4
+  - [Running] default/ecdt-chat-front-beta-587448c5d7-bc2r4
+  - [Running] default/ecdt-crowdsourcing-beta-5cd449d594-tht4g
+  - [Running] default/ecdt-econochat-back-beta-77bc649b57-p2fmm
+  - [Running] default/ecdt-email-finder-beta-86bc94b545-8q7hn
+  - [Running] default/ecdt-exact-sales-beta-757c94496-mckf9
+  - [Running] default/ecdt-exportacao-v2-beta-f56c5b856-8zkb7
+  - [Running] default/ecdt-gateway-beta-585cd8fc79-vft7t
+  - [Running] default/ecdt-gateway-v2-beta-799f7ff88b-xj9bl
+  - [Running] default/ecdt-historico-v2-beta-6fcdf7c9f-vzz9d
+  - [Running] default/ecdt-logs-beta-f68dc9566-jb42v
+  - [Running] default/ecdt-logstash-ms-beta-5784d459c7-9ls9d
+  - [Running] default/ecdt-oauth2-beta-6f7c6f9c59-8wz97
+  - [Running] default/ecdt-phonelookup-beta-596cf55647-wld97
+  - [Running] default/ecdt-plat-beta-57649c5cbb-4tp7q
+  - [Running] default/ecdt-plat-vue3-beta-6cf654fd9b-phh8r
+  - [Running] default/ecdt-qualificacao-beta-769c9748c9-7rvbh
+  - [Running] default/ecdt-tags-beta-6d554d99d5-dllsf
+  - [Running] default/ecdt-user-v2-beta-7fd6689cfb-5rls2
+  - [Running] default/ecdt-webhook-beta-56c9db5fd6-zt6sh
   - [Running] default/redis-0
   - [Running] default/redis-1
   - [Running] default/redis-2
@@ -181,21 +181,21 @@ NODO: gke-beta-pool-beta-high-0de43245-qmnf
   - [Running] default/redis-4
   - [Running] default/redis-5
   - [Running] gke-managed-cim/kube-state-metrics-0
-  - [Running] gmp-system/collector-4gqgk
-  - [Running] gmp-system/gmp-operator-7f95d577b8-d4hfc
-  - [Running] kube-system/event-exporter-gke-856c88f4c5-h9tcq
-  - [Running] kube-system/fluentbit-gke-tgpwm
-  - [Running] kube-system/gke-metadata-server-98d2v
-  - [Running] kube-system/gke-metrics-agent-nct8c
-  - [Running] kube-system/konnectivity-agent-766d98564d-h4ngj
-  - [Running] kube-system/konnectivity-agent-autoscaler-7d7759c579-phsxv
-  - [Running] kube-system/kube-dns-6f79b88c5f-k9r77
-  - [Running] kube-system/kube-dns-autoscaler-7d774bfc4b-45pf9
-  - [Running] kube-system/kube-proxy-gke-beta-pool-beta-high-0de43245-qmnf
-  - [Running] kube-system/l7-default-backend-67f884db6c-xfslb
-  - [Running] kube-system/metrics-server-v1.33.0-6f69bcb6f6-qb8gm
-  - [Running] kube-system/netd-4nwtf
-  - [Running] kube-system/pdcsi-node-px6fn
+  - [Running] gmp-system/collector-grzhh
+  - [Running] gmp-system/gmp-operator-f5674744f-6n665
+  - [Running] kube-system/event-exporter-gke-7bc5f66c66-jvhjz
+  - [Running] kube-system/fluentbit-gke-spgkt
+  - [Running] kube-system/gke-metadata-server-stqmj
+  - [Running] kube-system/gke-metrics-agent-pbd2z
+  - [Running] kube-system/konnectivity-agent-766d98564d-kch8x
+  - [Running] kube-system/konnectivity-agent-autoscaler-7d7759c579-gtkfc
+  - [Running] kube-system/kube-dns-6f79b88c5f-cwcbf
+  - [Running] kube-system/kube-dns-autoscaler-7d774bfc4b-vg787
+  - [Running] kube-system/kube-proxy-gke-beta-pool-beta-high-0de43245-n98j
+  - [Running] kube-system/l7-default-backend-67f884db6c-6pvlz
+  - [Running] kube-system/metrics-server-v1.33.0-6f69bcb6f6-q46wk
+  - [Running] kube-system/netd-gxht9
+  - [Running] kube-system/pdcsi-node-rdltg
 
   Total de pods: 48
 

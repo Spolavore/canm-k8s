@@ -12,3 +12,5 @@ removendo metrica de rede-> nao houve ganhos significativos
 Comprar dominio canm.io
 
 Implementar um simulador para efetuar os testes do canm
+
+Convert to ms aplicado no constructor

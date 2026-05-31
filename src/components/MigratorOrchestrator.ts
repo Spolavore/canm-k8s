@@ -50,10 +50,15 @@ class MigratorOrchestrator {
             checkInterval: '1m',
             highNodeCoolDown: '30m',
             lowNodeCoolDown: '5m',
+            canmEvalCoolDown: '5m',
             lowPoolTimeWindowEval: '5m',
             highPoolTimeWindowEval: '30m',
+            drainPaced: false,
+            drainBatchSize: 10,
+            drainBatchTimeout: '5m',
             ...migrationConfig,
         };
+        this.showDecisionsLogs = Boolean(process.env.SHOW_DECISIONS_LOGS) || false;
         this.provider = provider;
         this.weights = {
             cpu: this.parseWeight(rawWeights.cpu, this.DEFAULT_CPU_WEIGHT),
@@ -66,7 +71,6 @@ class MigratorOrchestrator {
             logger(COMPONENT, 'No provider was found, exiting...', 'info');
             exit(1);
         }
-        this.showDecisionsLogs = process.env.SHOW_DECISIONS_LOGS === 'TRUE';
     }
 
     private selectNodeMigrator(config: ProviderConfig) {
@@ -265,7 +269,15 @@ class MigratorOrchestrator {
         // Draining the current node - letting the pods to be reeschedule in the created node
         try {
             this.nodeMigrator.annotateNode(node.node, 'MIGRATION_STAGE', 'draining');
-            this.nodeMigrator.drain(node.node, 60, true);
+            if (this.migrationConfig.drainPaced) {
+                this.nodeMigrator.batchedDrain(
+                    node.node,
+                    this.migrationConfig.drainBatchSize!,
+                    convertToMs(this.migrationConfig.drainBatchTimeout!),
+                );
+            } else {
+                this.nodeMigrator.drain(node.node, 60, true);
+            }
         } catch (error) {
             logger(COMPONENT, `Error on draining node ${node.node}: ${error}`);
             this.compensate(direction, 'draining', node, newNode!);
@@ -577,6 +589,7 @@ class MigratorOrchestrator {
     }
 
     async start() {
+        let finishedLastEvaluatAt: number | null = null;
         logger(
             COMPONENT,
             `\nConfig:\nLow threshold: ${this.migrationConfig.lowScoreThreshold}\nLow cooldown: ${this.migrationConfig.lowNodeCoolDown}\nHigh threshold: ${this.migrationConfig.highScoreThreshold}\nHigh cooldown: ${this.migrationConfig.highNodeCoolDown}\nPolicy: ${this.migrationConfig.policy}`,
@@ -586,13 +599,14 @@ class MigratorOrchestrator {
         const tick = async () => {
             try {
                 const canEvaluateCluster = await this.reconcilePendingMigrations();
-                if (canEvaluateCluster) {
+                const evalCoolDownPassed =
+                    finishedLastEvaluatAt == null ||
+                    Date.now() - finishedLastEvaluatAt >= convertToMs(this.migrationConfig.canmEvalCoolDown!);
+                if (canEvaluateCluster && evalCoolDownPassed) {
                     await this.evaluateCluster();
+                    finishedLastEvaluatAt = Date.now();
                 } else {
-                    logger(
-                        COMPONENT,
-                        `The reconciliation step made changes to the state of the cluster, skipping evaluation...`,
-                    );
+                    logger(COMPONENT, `Cluster evaluation skipped (reconcile changed state or eval cooldown active)`);
                 }
             } catch (err) {
                 logger(COMPONENT, `Unexpected error during cluster evaluation: ${err}`, 'error');
