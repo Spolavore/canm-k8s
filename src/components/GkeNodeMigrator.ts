@@ -37,6 +37,10 @@ class GkeNodeMigrator {
         return drainSucced;
     }
 
+    batchedDrain(nodeName: string, batchSize: number, timeout: number) {
+        logger(COMPONENT, `Batch draining ${nodeName}`);
+    }
+
     uncordon(nodeName: string): boolean {
         logger(COMPONENT, `Uncordoning ${nodeName}...`);
         const uncordonSucced = this.k8sClient.uncordon(nodeName);
