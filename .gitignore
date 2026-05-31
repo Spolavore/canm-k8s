@@ -3,3 +3,6 @@ node_modules/
 ignore/
 *.jsonl
 **/debug
+
+# Saída bruta de testes de carga (grande demais p/ GitHub; manter só local)
+*.csv
