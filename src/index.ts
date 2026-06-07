@@ -14,10 +14,10 @@ const migrationConfig: MigrationConfig = {
     ...(process.env.LOW_NODE_COOL_DOWN && { lowNodeCoolDown: process.env.LOW_NODE_COOL_DOWN }),
     ...(process.env.LOW_POOL_TIME_WINDOW_EVAL && { lowPoolTimeWindowEval: process.env.LOW_POOL_TIME_WINDOW_EVAL }),
     ...(process.env.HIGH_POOL_TIME_WINDOW_EVAL && { highPoolTimeWindowEval: process.env.HIGH_POOL_TIME_WINDOW_EVAL }),
-    ...(process.env.CANM_EVAL_COOLDOWN && { canmEvalCoolDown: process.env.CANM_EVAL_COOLDOWN }),
     ...(process.env.DRAIN_PACED && { drainPaced: process.env.DRAIN_PACED == 'TRUE' ? true : false }),
-    ...(process.env.DRAIN_BATCH_TIMEOUT && { drainBatchTimeout: process.env.DRAIN_BATCH_TIMEOUT }),
+    ...(process.env.DRAIN_BATCH_INTERVAL && { drainBatchTimeout: process.env.DRAIN_BATCH_INTERVAL }),
     ...(process.env.DRAIN_BATCH_SIZE && { drainBatchSize: Number(process.env.DRAIN_BATCH_SIZE) }),
+    ...(process.env.EVICTION_POLICY && { evictionPolicy: process.env.EVICTION_POLICY as 'surge' | 'drain' }),
 };
 
 const providerConfig = loadProviderConfig();

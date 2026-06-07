@@ -81,6 +81,26 @@ Ver [[03 - Scoring and Decision]] para detalhes.
 
 ---
 
+## Drain Pausado/Incremental
+
+Controla a etapa DRAINING do pipeline (ver [[04 - Migration Pipeline]]). Com `DRAIN_PACED=false` (default) nada muda — usa-se o `kubectl drain` one-shot. Com `DRAIN_PACED=true`, os pods são evacuados em lotes via Eviction API, com espera fixa entre lotes.
+
+> **Modo surge (recomendado, em implementação):** evacua por rolling replacement com
+> `maxUnavailable=0` (pod novo `Ready` antes de remover o antigo) em vez de evicção → ~0 erro
+> na migração. Será exposto por flag própria; ver [[04 - Migration Pipeline]] e [[10 - Roadmap]].
+
+| Variável | Tipo | Default | Descrição |
+|----------|------|---------|-----------|
+| `DRAIN_PACED` | bool string | `'false'` | Feature flag. Apenas `'TRUE'` (maiúsculo) ativa o drain pausado; qualquer outro valor mantém o `kubectl drain` atual |
+| `DRAIN_BATCH_SIZE` | int | `10` | Quantidade de pods evacuados por lote |
+| `DRAIN_BATCH_INTERVAL` | duration | `'5m'` | Espera fixa entre lotes (tempo para o lote aquecer no nó destino) |
+
+**Calibração:** o `DRAIN_BATCH_INTERVAL` é um chute inicial — sem feedback de CPU, é o operador que calibra empiricamente observando o warmup do nó destino. Lotes menores (ex: `3`–`5`) distribuem melhor o warmup mas alongam a migração; lotes maiores aproximam o comportamento do one-shot. Duração total ≈ `(nº de lotes − 1) × DRAIN_BATCH_INTERVAL`.
+
+> A espera fixa é deliberadamente simples nesta 1ª versão. Gatear cada lote pela **CPU real do nó destino** (em vez de tempo fixo) é [[10 - Roadmap|trabalho futuro]].
+
+---
+
 ## Pesos de Métricas
 
 | Variável | Tipo | Default | Descrição |
@@ -149,6 +169,11 @@ HIGH_POOL_TIME_WINDOW_EVAL=1h
 
 # Intervalo de operação
 CHECK_INTERVAL=1m
+
+# Drain pausado/incremental (opcional; default desligado)
+DRAIN_PACED=TRUE
+DRAIN_BATCH_SIZE=10
+DRAIN_BATCH_INTERVAL=5m
 
 # Pesos de score (serão normalizados)
 CPU_WEIGHT=0.75
