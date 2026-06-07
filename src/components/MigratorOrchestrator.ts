@@ -46,13 +46,13 @@ class MigratorOrchestrator {
         providerConf: ProviderConfig,
     ) {
         this.migrationConfig = {
-            policy: 'prioritizeCost',
+            policy: 'prioritizePerformance',
             checkInterval: '1m',
-            highNodeCoolDown: '30m',
+            highNodeCoolDown: '5m',
             lowNodeCoolDown: '5m',
-            canmEvalCoolDown: '5m',
-            lowPoolTimeWindowEval: '5m',
-            highPoolTimeWindowEval: '30m',
+            lowPoolTimeWindowEval: '10m',
+            highPoolTimeWindowEval: '10m',
+            evictionPolicy: 'drain',
             drainPaced: false,
             drainBatchSize: 10,
             drainBatchTimeout: '5m',
@@ -66,6 +66,7 @@ class MigratorOrchestrator {
         };
         this.metrics = new MetricsAdapter(this.weights);
         this.auditLogger = new AuditLogger();
+
         this.selectNodeMigrator(providerConf);
         if (!this.nodeMigrator) {
             logger(COMPONENT, 'No provider was found, exiting...', 'info');
@@ -111,7 +112,7 @@ class MigratorOrchestrator {
         return Date.now() - new Date(node.creationTimestamp).getTime() < cooldown;
     }
 
-    private evaluateNodePool(nodesScore: ExpandedNodeScore[], threshold: number, cmp: ComparisonOperator) {
+    private async evaluateNodePool(nodesScore: ExpandedNodeScore[], threshold: number, cmp: ComparisonOperator) {
         let actionEffectuated = false;
         for (const node of nodesScore) {
             if (this.isNodeInCooldown(node)) {
@@ -130,7 +131,7 @@ class MigratorOrchestrator {
                     'info',
                     this.showDecisionsLogs,
                 );
-                this.migrateNode(node);
+                await this.migrateNode(node);
                 actionEffectuated = true;
                 break;
             }
@@ -247,10 +248,10 @@ class MigratorOrchestrator {
         }
     }
 
-    private executeMigrationPipeline(
+    private async executeMigrationPipeline(
         node: ExpandedNodeScore,
         direction: MigrationDirection,
-    ): MigrationPipelineResponse {
+    ): Promise<MigrationPipelineResponse> {
         let newNode: string | null;
         // Adding node to the other node pool
         try {
@@ -269,14 +270,24 @@ class MigratorOrchestrator {
         // Draining the current node - letting the pods to be reeschedule in the created node
         try {
             this.nodeMigrator.annotateNode(node.node, 'MIGRATION_STAGE', 'draining');
-            if (this.migrationConfig.drainPaced) {
-                this.nodeMigrator.batchedDrain(
-                    node.node,
-                    this.migrationConfig.drainBatchSize!,
-                    convertToMs(this.migrationConfig.drainBatchTimeout!),
-                );
-            } else {
-                this.nodeMigrator.drain(node.node, 60, true);
+            switch (this.migrationConfig.evictionPolicy) {
+                case 'surge':
+                    await this.nodeMigrator.rollingUpdateNode(node.node);
+                    break;
+                case 'drain':
+                    if (this.migrationConfig.drainPaced) {
+                        await this.nodeMigrator.batchedDrain(
+                            node.node,
+                            this.migrationConfig.drainBatchSize!,
+                            convertToMs(this.migrationConfig.drainBatchTimeout!),
+                        );
+                    } else {
+                        this.nodeMigrator.drain(node.node, 60, true);
+                    }
+                    break;
+                default:
+                    // Nunca seguir para 'removing' sem drenar: lança → compensate('draining').
+                    throw new Error(`Invalid evictionPolicy: ${this.migrationConfig.evictionPolicy}`);
             }
         } catch (error) {
             logger(COMPONENT, `Error on draining node ${node.node}: ${error}`);
@@ -300,7 +311,7 @@ class MigratorOrchestrator {
         return { status: 'passed', stage: 'conclued' };
     }
 
-    private migrateNode(node: ExpandedNodeScore) {
+    private async migrateNode(node: ExpandedNodeScore) {
         const nodePoolTo =
             node.nodePool === this.migrationConfig.lowNodePool
                 ? this.migrationConfig.highNodePool
@@ -309,7 +320,7 @@ class MigratorOrchestrator {
             nodePoolTo === this.migrationConfig.lowNodePool ? 'high->low' : 'low->high';
         logger(COMPONENT, `Migrating ${node.node} with score ${node.score.toFixed(2)} to ${nodePoolTo}`);
         const start = Date.now();
-        const pipelineRes: MigrationPipelineResponse = this.executeMigrationPipeline(node, direction);
+        const pipelineRes: MigrationPipelineResponse = await this.executeMigrationPipeline(node, direction);
         const durationMs = Date.now() - start;
         if (pipelineRes.status === 'passed') {
             logger(COMPONENT, `Migration finished in ${(durationMs / 1000).toFixed(1)}s`);
@@ -347,13 +358,13 @@ class MigratorOrchestrator {
         let hasChanged = false;
         switch (this.migrationConfig.policy) {
             case 'prioritizePerformance': {
-                hasChanged = this.evaluateNodePool(
+                hasChanged = await this.evaluateNodePool(
                     nodesScoreLowNodePool,
                     this.migrationConfig.highScoreThreshold,
                     'gte',
                 );
                 if (hasChanged) return;
-                hasChanged = this.evaluateNodePool(
+                hasChanged = await this.evaluateNodePool(
                     nodesScoreHighNodePool,
                     this.migrationConfig.lowScoreThreshold,
                     'lte',
@@ -362,13 +373,13 @@ class MigratorOrchestrator {
             }
 
             case 'prioritizeCost': {
-                hasChanged = this.evaluateNodePool(
+                hasChanged = await this.evaluateNodePool(
                     nodesScoreHighNodePool,
                     this.migrationConfig.lowScoreThreshold,
                     'lte',
                 );
                 if (hasChanged) return;
-                hasChanged = this.evaluateNodePool(
+                hasChanged = await this.evaluateNodePool(
                     nodesScoreLowNodePool,
                     this.migrationConfig.highScoreThreshold,
                     'gte',
@@ -589,7 +600,6 @@ class MigratorOrchestrator {
     }
 
     async start() {
-        let finishedLastEvaluatAt: number | null = null;
         logger(
             COMPONENT,
             `\nConfig:\nLow threshold: ${this.migrationConfig.lowScoreThreshold}\nLow cooldown: ${this.migrationConfig.lowNodeCoolDown}\nHigh threshold: ${this.migrationConfig.highScoreThreshold}\nHigh cooldown: ${this.migrationConfig.highNodeCoolDown}\nPolicy: ${this.migrationConfig.policy}`,
@@ -599,12 +609,8 @@ class MigratorOrchestrator {
         const tick = async () => {
             try {
                 const canEvaluateCluster = await this.reconcilePendingMigrations();
-                const evalCoolDownPassed =
-                    finishedLastEvaluatAt == null ||
-                    Date.now() - finishedLastEvaluatAt >= convertToMs(this.migrationConfig.canmEvalCoolDown!);
-                if (canEvaluateCluster && evalCoolDownPassed) {
+                if (canEvaluateCluster) {
                     await this.evaluateCluster();
-                    finishedLastEvaluatAt = Date.now();
                 } else {
                     logger(COMPONENT, `Cluster evaluation skipped (reconcile changed state or eval cooldown active)`);
                 }

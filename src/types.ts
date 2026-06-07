@@ -46,9 +46,9 @@ export type MigrationConfig = {
     checkInterval?: string;
     highNodeCoolDown?: string;
     lowNodeCoolDown?: string;
-    canmEvalCoolDown?: string;
     lowPoolTimeWindowEval?: string;
     highPoolTimeWindowEval?: string;
+    evictionPolicy?: 'surge' | 'drain';
     drainPaced?: boolean;
     drainBatchTimeout?: string;
     drainBatchSize?: number;

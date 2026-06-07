@@ -88,7 +88,8 @@ canm/
    │
 4. [se migração iniciada] executeMigrationPipeline(node, direction)
    ├── Etapa ADDITION   → GkeNodeMigrator.addNode*()
-   ├── Etapa DRAINING   → KubernetesClient.drain()
+   ├── Etapa DRAINING   → mecanismo configurável: drain() one-shot | batchedDrain() por lotes |
+   │                       surge/rollout maxUnavailable=0 (evacuação sem downtime)
    └── Etapa REMOVING   → GkeNodeMigrator.removeNode*()
    │
 5. compensate() ou AuditLogger.log() conforme resultado
@@ -122,7 +123,8 @@ canm/
 
 ### `KubernetesClient`
 - Wrapper sobre `@kubernetes/client-node`
-- Executa `kubectl drain`, `kubectl uncordon`, `kubectl wait`
+- Executa `kubectl drain`, `kubectl cordon`/`uncordon`, `kubectl wait`
+- `getPodsOnNode` (pods despejáveis) e `evictPod` (Eviction API `policy/v1`, respeita PDB) — usados pelo drain pausado por lotes
 - Faz `annotateNode` / `removeNodeAnnotation` (chave para o mecanismo de estado)
 - Configura kubeconfig automaticamente via `gkeCredentialsGenerator` se necessário
 
@@ -137,9 +139,9 @@ canm/
 | Sistema | Como conecta | Operações |
 |---------|--------------|-----------|
 | **Prometheus** | HTTP REST API (`PROMETHEUS_API_URL`) | Query `cpu_usage`, `memory_usage` por nó |
-| **Kubernetes API** | SDK + kubeconfig | `listNodes`, `annotate`, `drain`, `uncordon`, `wait` |
+| **Kubernetes API** | SDK + kubeconfig | `listNodes`, `annotate`, `drain`, `cordon`/`uncordon`, `getPodsOnNode`, `evictPod` (Eviction API), `wait` |
 | **GCP Compute / MIG** | `gcloud` CLI no PATH | `create-instance`, `delete-instances`, `wait-until --stable` |
-| **kubectl** | CLI no PATH | `drain`, `uncordon`, `wait --for=create`, `wait --for=condition=Ready` |
+| **kubectl** | CLI no PATH | `drain`, `cordon`, `uncordon`, `wait --for=create`, `wait --for=condition=Ready` |
 
 ---
 

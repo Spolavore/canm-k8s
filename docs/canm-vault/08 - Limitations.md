@@ -89,15 +89,28 @@ Breve downtime para pods que estavam no nó novo enquanto são reagendados em ou
 
 ---
 
-## 5. Sem Suporte a PDBs na Etapa de Drain
+## 5. PDBs na Etapa de Drain
 
-O `kubectl drain` inclui `--force` e `--delete-emptydir-data`, mas se um `PodDisruptionBudget` impede a evicção dos pods, o drain falha. O CANM:
+O comportamento depende do modo de drain (ver [[04 - Migration Pipeline]] e [[06 - Configuration]]):
+
+**Modo legado (`DRAIN_PACED=false`):** o `kubectl drain` inclui `--force` e `--delete-emptydir-data`, mas se um `PodDisruptionBudget` impede a evicção, o drain inteiro falha. O CANM então:
 
 1. Compensa (uncordon source, remove nó novo)
 2. Marca o source com annotation pendente
-3. A reconciliação vai tentar novamente no próximo tick
+3. A reconciliação tenta novamente no próximo tick
 
-Se o PDB continuar bloqueando, a migração nunca avança — o source fica preso em `stage=draining` indefinidamente (com cooldown de 5 minutos entre retentativas).
+Se o PDB continuar bloqueando, a migração nunca avança — o source fica preso em `stage=draining` indefinidamente (com cooldown entre retentativas).
+
+**Modo pausado (`DRAIN_PACED=true`):** usa a Eviction API por pod, que **honra o PDB de forma graciosa**. Um bloqueio transitório (`429`) é retentado com backoff dentro do próprio drain; esgotadas as tentativas, o pod é logado e **pulado** (sai depois, no estágio REMOVING) — o drain não falha por causa de um PDB momentâneo. Um PDB que bloqueie **permanentemente** ainda deixa o pod para trás (removido à força no REMOVING), o que pode causar breve indisponibilidade desse serviço.
+
+**Modo surge:** não drena por evicção — faz rolling replacement com `maxUnavailable=0` (pod novo
+`Ready` antes de remover o antigo). Não depende de PDB para evitar o gap de capacidade e **elimina
+os timeouts/502 estruturais da migração** (o lever que faltava — ver [[04 - Migration Pipeline]]).
+
+**Gap de capacidade na evicção (modos legado/pausado):** ambos drenam matando o pod antes de o
+substituto ficar `Ready` → janela de capacidade reduzida → sob carga (pior nas `low→high`) gera
+timeout/502. O `preStop` (handover gracioso) corrige o roteamento para pod morto, mas não o gap de
+capacidade. **Solução: modo surge.**
 
 **Workaround:** Verificar PDBs antes de configurar thresholds agressivos, ou aumentar `LOW_SCORE_THRESHOLD` para reduzir a frequência de migrações.
 
@@ -123,7 +136,7 @@ O score atual leva em conta apenas CPU e memória. Workloads com alto I/O de red
 | Cluster regional | Alta — ADDITION falha | Sim — usar zona específica |
 | Múltiplas réplicas | Alta — race conditions | Sim — rodar 1 réplica |
 | Race condition ao matar | Baixa — breve downtime | Parcialmente (via reconciliação) |
-| PDB bloqueando drain | Média — migração travada | Sim — revisar PDBs |
+| PDB bloqueando drain | Média (legado) / Baixa (pausado) | Sim — `DRAIN_PACED=true` trata 429 graciosamente; revisar PDBs |
 | Sem validação de configuração | Baixa — descoberta tardia | Não (por enquanto) |
 | Rede não considerada | Baixa — falso positivo ocasional | Sim — via CPU_WEIGHT/MEMORY_WEIGHT |
 

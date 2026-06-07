@@ -2,7 +2,8 @@ import { execSync } from 'node:child_process';
 import KubernetesClient from '@lib/KubernetesClient';
 import type { ProviderConfig } from '@lib/KubernetesClient';
 import type { NodeScore, ExpandedNodeScore, KubernetesNodes, ClusterNodes } from '@/types';
-import { logger, generateHash, ANNOTATION } from '@/utils';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { logger, generateHash, ANNOTATION, chunk } from '@/utils';
 
 const COMPONENT = 'GKE Node Migrator';
 const CANM_NODE_PREFIX = 'gke-canm';
@@ -37,8 +38,71 @@ class GkeNodeMigrator {
         return drainSucced;
     }
 
-    batchedDrain(nodeName: string, batchSize: number, timeout: number) {
-        logger(COMPONENT, `Batch draining ${nodeName}`);
+    async batchedDrain(nodeName: string, batchSize: number, batchInterval: number): Promise<boolean> {
+        logger(COMPONENT, `Batch draining ${nodeName} (batchSize=${batchSize}, interval=${batchInterval}ms)`);
+        this.cordon(nodeName);
+
+        const pods = await this.k8sClient.getPodsOnNode(nodeName);
+        if (pods.length === 0) {
+            logger(COMPONENT, `No evictable pods on ${nodeName}; nothing to drain`);
+            return true;
+        }
+
+        const batches = chunk(pods, batchSize);
+        logger(COMPONENT, `Draining ${pods.length} pods from ${nodeName} in ${batches.length} batch(es)`);
+
+        for (let i = 0; i < batches.length; i++) {
+            const batch = batches[i];
+            logger(COMPONENT, `Evicting batch ${i + 1}/${batches.length} (${batch.length} pods)`);
+            for (const pod of batch) {
+                await this.evictPodWithRetry(pod.namespace, pod.name);
+            }
+            // Espera fixa entre lotes (warmup do lote); não espera após o último lote.
+            if (i < batches.length - 1) {
+                logger(COMPONENT, `Waiting ${batchInterval}ms before next batch`);
+                await sleep(batchInterval);
+            }
+        }
+
+        logger(COMPONENT, `Batch drain of ${nodeName} completed`);
+        return true;
+    }
+
+    private async evictPodWithRetry(namespace: string, name: string, attempts = 5, backoffMs = 5000): Promise<void> {
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+            const evicted = await this.k8sClient.evictPod(namespace, name, 30);
+            if (evicted) return;
+            if (attempt < attempts) {
+                logger(
+                    COMPONENT,
+                    `Pod ${namespace}/${name} blocked by PDB; retry ${attempt}/${attempts - 1} in ${backoffMs}ms`,
+                );
+                await sleep(backoffMs);
+            }
+        }
+        logger(
+            COMPONENT,
+            `Pod ${namespace}/${name} still blocked by PDB after ${attempts} attempts; continuing`,
+            'error',
+        );
+    }
+
+    async rollingUpdateNode(nodeName: string, timeoutSeconds?: number): Promise<boolean> {
+        logger(COMPONENT, `Surge-evacuating ${nodeName} via rolling update...`);
+        this.cordon(nodeName);
+        const succeeded = await this.k8sClient.rollingUpdateNode(nodeName, timeoutSeconds);
+        if (!succeeded) {
+            logger(COMPONENT, `Error on rolling update (surge) of node ${nodeName}, using draining backoff`);
+            this.drain(nodeName);
+        }
+        return succeeded;
+    }
+
+    cordon(nodeName: string): boolean {
+        logger(COMPONENT, `Cordoning ${nodeName}...`);
+        const cordonSucced = this.k8sClient.cordon(nodeName);
+        if (!cordonSucced) throw new Error(`Error on uncordoning node ${nodeName}`);
+        return cordonSucced;
     }
 
     uncordon(nodeName: string): boolean {
