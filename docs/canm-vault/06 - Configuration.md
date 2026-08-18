@@ -1,4 +1,4 @@
-# Configuration — Hiperparâmetros e Variáveis de Ambiente
+ # Configuration — Hiperparâmetros e Variáveis de Ambiente
 
 Todas as configurações do CANM são lidas de um arquivo `.env` na raiz do projeto. Valores com `*` são obrigatórios.
 
@@ -84,10 +84,6 @@ Ver [[03 - Scoring and Decision]] para detalhes.
 ## Drain Pausado/Incremental
 
 Controla a etapa DRAINING do pipeline (ver [[04 - Migration Pipeline]]). Com `DRAIN_PACED=false` (default) nada muda — usa-se o `kubectl drain` one-shot. Com `DRAIN_PACED=true`, os pods são evacuados em lotes via Eviction API, com espera fixa entre lotes.
-
-> **Modo surge (recomendado, em implementação):** evacua por rolling replacement com
-> `maxUnavailable=0` (pod novo `Ready` antes de remover o antigo) em vez de evicção → ~0 erro
-> na migração. Será exposto por flag própria; ver [[04 - Migration Pipeline]] e [[10 - Roadmap]].
 
 | Variável | Tipo | Default | Descrição |
 |----------|------|---------|-----------|

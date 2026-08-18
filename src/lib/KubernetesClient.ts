@@ -1,14 +1,11 @@
 import * as k8s from '@kubernetes/client-node';
 import * as gkeCredentialsGenerator from '@config/gkeCredentialsGenerator';
-import { execSync, exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { execSync } from 'node:child_process';
 import { AvailableProviders } from '@/types';
-import { logger, ANNOTATION, chunk } from '@/utils';
+import { logger, ANNOTATION } from '@/utils';
 import type { KubernetesNodes } from '@/types';
 
 const COMPONENT = 'KubernetesClient';
-
-const execAsync = promisify(exec);
 
 export type ProviderConfig = {
     clusterName: string;
@@ -69,6 +66,16 @@ class KubernetesClient {
             return true;
         } catch (error) {
             logger(COMPONENT, `Error while trying to drain ${nodeName}: ${error}`, 'error');
+            return false;
+        }
+    }
+
+    deleteNode(nodeName: string): boolean {
+        try {
+            execSync(`kubectl delete node ${nodeName}`, { encoding: 'utf-8' });
+            return true;
+        } catch (error) {
+            logger(COMPONENT, `Error while trying to delete node ${nodeName}: ${error}`, 'error');
             return false;
         }
     }
@@ -265,80 +272,6 @@ class KubernetesClient {
             logger(COMPONENT, `Error while evicting pod ${namespace}/${name}: ${error}`, 'error');
             throw error;
         }
-    }
-
-    async rollingUpdateDeployment(namespace: string, name: string, timeoutSeconds = 300): Promise<boolean> {
-        const surgePatch =
-            '{"spec":{"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxUnavailable":0,"maxSurge":1}}}}';
-        try {
-            // 1) Garante surge (novo Ready antes de remover o antigo). Mudar a strategy não dispara rollout.
-            await execAsync(`kubectl patch deployment ${name} -n ${namespace} --type=strategic -p '${surgePatch}'`);
-            // 2) Dispara o rollout (recria os pods) usando a strategy de surge.
-            await execAsync(`kubectl rollout restart deployment/${name} -n ${namespace}`);
-            // 3) Aguarda o rollout concluir (pods novos Ready, antigos removidos).
-            await execAsync(`kubectl rollout status deployment/${name} -n ${namespace} --timeout=${timeoutSeconds}s`);
-            logger(COMPONENT, `Rolling update (surge) of ${namespace}/${name} completed`);
-            return true;
-        } catch (error) {
-            logger(COMPONENT, `Error on rolling update of ${namespace}/${name}: ${error}`, 'error');
-            return false;
-        }
-    }
-
-    getDeploymentsOnNode(nodeName: string): Array<{ namespace: string; name: string }> {
-        const deployments = new Map<string, { namespace: string; name: string }>();
-        try {
-            // pods do nó -> linhas "namespace KIND replicaSetName"
-            const podsOut = execSync(
-                `kubectl get pods -A --field-selector spec.nodeName=${nodeName} --no-headers ` +
-                    `-o custom-columns=NS:.metadata.namespace,KIND:.metadata.ownerReferences[0].kind,RS:.metadata.ownerReferences[0].name`,
-                { encoding: 'utf-8' },
-            );
-
-            const replicaSets = new Map<string, { ns: string; rs: string }>();
-            for (const line of podsOut.split('\n')) {
-                const [ns, kind, rs] = line.trim().split(/\s+/);
-                if (kind === 'ReplicaSet' && ns && rs) replicaSets.set(`${ns}/${rs}`, { ns, rs });
-            }
-
-            // ReplicaSet -> Deployment dono
-            for (const { ns, rs } of replicaSets.values()) {
-                const dep = execSync(
-                    `kubectl get rs ${rs} -n ${ns} -o jsonpath='{.metadata.ownerReferences[0].name}'`,
-                    { encoding: 'utf-8' },
-                ).trim();
-                if (dep) deployments.set(`${ns}/${dep}`, { namespace: ns, name: dep });
-            }
-        } catch (error) {
-            logger(COMPONENT, `Error resolving deployments on node ${nodeName}: ${error}`, 'error');
-        }
-        return [...deployments.values()];
-    }
-
-    async rollingUpdateNode(nodeName: string, timeoutSeconds = 300, concurrency = 6): Promise<boolean> {
-        const deployments = this.getDeploymentsOnNode(nodeName);
-        if (deployments.length === 0) {
-            logger(COMPONENT, `No Deployments with pods on ${nodeName}; nothing to roll`);
-            return true;
-        }
-        const batches = chunk(deployments, concurrency);
-        logger(
-            COMPONENT,
-            `Rolling update (surge) of ${deployments.length} Deployment(s) on ${nodeName} ` +
-                `in ${batches.length} batch(es) of up to ${concurrency}`,
-        );
-        // Lotes em série; dentro de cada lote, rollouts em paralelo (Promise.all).
-        // Limita o surge simultâneo para não estourar a capacidade do nó de destino.
-        let allOk = true;
-        for (let i = 0; i < batches.length; i++) {
-            const batch = batches[i];
-            logger(COMPONENT, `Rolling batch ${i + 1}/${batches.length} (${batch.length} Deployment(s))`);
-            const results = await Promise.all(
-                batch.map((d) => this.rollingUpdateDeployment(d.namespace, d.name, timeoutSeconds)),
-            );
-            if (!results.every((ok) => ok)) allOk = false;
-        }
-        return allOk;
     }
 
     getCoreV1Api(): k8s.CoreV1Api {

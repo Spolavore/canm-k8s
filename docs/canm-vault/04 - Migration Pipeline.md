@@ -59,8 +59,7 @@ annotate(novo_nó, STATE = 'created')
 
 **Objetivo:** Drenar todos os pods do nó origem para que possam ser rescheduleados no novo nó (ou em outros nós disponíveis).
 
-Existem **três modos** de drenar (ver [[06 - Configuration]]). A compensação e a reconciliação
-são **idênticas nos três** — o estágio continua sendo `draining`, só muda o *mecanismo* de evacuação.
+Existem **dois modos**, selecionados pela flag `DRAIN_PACED` (ver [[06 - Configuration]]). A compensação é idêntica nos dois.
 
 ### Modo legado — drain one-shot (`DRAIN_PACED=false`, default)
 
@@ -99,45 +98,7 @@ Detalhes do modo pausado:
 - **Cordon explícito primeiro**, garantindo que pods substitutos não voltem à origem (vão para o destino ou outros nós).
 - **Trade-off:** a migração fica **mais lenta** (lotes × `DRAIN_BATCH_INTERVAL`) em troca de eliminar o pico de warmup. Aceitável para um otimizador de custo esporádico.
 
-### Modo surge — evacuação sem downtime (recomendado; em implementação)
-
-> Status: é o mecanismo-alvo, definido após os testes de carga mostrarem que o erro residual de
-> toda migração é o gap de capacidade da evicção. Os modos one-shot e pausado já existem.
-
-**Motivação:** tanto o one-shot quanto o pausado drenam por **evicção** — "mata o pod da origem,
-depois recria". Isso sempre abre uma **janela de capacidade reduzida**: enquanto o substituto não
-está `Ready` no destino, o serviço tem menos réplicas. Sob carga (especialmente nas migrações
-`low→high`, que ocorrem justamente quando o nó está sobrecarregado), perder 1 réplica satura as
-demais → **timeouts/502 durante a migração**. O `preStop` (handover gracioso, ver
-[[06 - Configuration]]) resolveu o *roteamento para pod morto*, mas **não devolve a capacidade
-perdida** — esse é o erro residual de toda migração.
-
-O modo surge inverte a ordem: o pod novo fica **`Ready` ANTES** de o antigo sair, então a
-capacidade **nunca cai** abaixo do desejado.
-
-```
-annotate(source, MIGRATION_STAGE = 'draining')
-  ↓
-cordon(source)                          ← impede novos pods na origem
-  ↓
-para cada Deployment com pod na origem:
-    rolling replacement com maxUnavailable=0, maxSurge≥1
-    (cria pod novo em outro nó → espera Ready → SÓ ENTÃO remove o antigo)
-  ↓
-(nó origem fica sem pods de app → segue para REMOVING)
-```
-
-Detalhes:
-- **Zero gap de capacidade:** durante a troca há N+1 réplicas (surge), nunca N−1. Elimina o
-  timeout/502 estrutural da migração, em **qualquer direção** (inclusive `low→high` sob pico).
-- **Estágio inalterado:** continua `draining`. Falha no meio do surge → mesma
-  `compensate('draining')` (uncordon origem + remove destino) e mesma reconciliação. **Não há
-  estágio, compensação nem reconciliação novos.**
-- Custo: a migração recria todas as réplicas dos serviços afetados (rollout), portanto mais
-  churn de pods do que evictar só os da origem — em troca de ~0 erro. `preStop` segue valendo
-  (drena conexões em voo na troca).
-
-### Compensação em falha (idêntica nos três modos)
+### Compensação em falha (idêntica nos dois modos)
 ```
 1. kubectl uncordon <source>         ← drain pode cordonar mesmo em erro
 2. gcloud ... delete-instances <novo_nó>
@@ -146,7 +107,7 @@ Detalhes:
                   reconciliação vai remover depois
 ```
 
-> **Falha parcial (pausado ou surge):** se a drenagem falhar **no meio** (alguns lotes/Deployments já evacuados), alguns pods já podem ter sido movidos para o destino. A compensação atual (tudo-ou-nada) remove esse destino → os pods movidos são reescalonados (churn, mas sobrevivível, sem perda de dado). Compensação fina é [[10 - Roadmap|trabalho futuro]].
+> **Falha parcial no modo pausado:** se o drain falhar **no meio** dos lotes, alguns pods já podem ter sido movidos para o destino. A compensação atual (tudo-ou-nada) remove esse destino → os pods movidos são reescalonados (churn, mas sobrevivível, sem perda de dado). Compensação fina é [[10 - Roadmap|trabalho futuro]].
 
 ---
 
@@ -228,12 +189,11 @@ Destination Node:
          │ FALHA? → compensate: removeAnnotation(MIGRATION_STAGE) → TICK
          │ OK ↓
     ┌────▼──────────────────────────────┐
-    │ DRAINING (mecanismo configurável) │
+    │ DRAINING                          │
     │ - annotate source: stage=draining │
-    │ - one-shot: kubectl drain         │
-    │ - pausado:  cordon + evict/lotes  │
-    │ - surge:    cordon + rollout       │
-    │     maxUnavailable=0 (sem downtime)│
+    │ - DRAIN_PACED=false: kubectl drain│
+    │ - DRAIN_PACED=true:  cordon +     │
+    │     evict por lotes + sleep       │
     └────┬──────────────────────────────┘
          │ FALHA? → uncordon source
          │          delete novo nó

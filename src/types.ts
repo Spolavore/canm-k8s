@@ -48,13 +48,26 @@ export type MigrationConfig = {
     lowNodeCoolDown?: string;
     lowPoolTimeWindowEval?: string;
     highPoolTimeWindowEval?: string;
-    evictionPolicy?: 'surge' | 'drain';
     drainPaced?: boolean;
     drainBatchTimeout?: string;
     drainBatchSize?: number;
+    removeSettle?: string;
 };
 
 export type MigrationDirection = 'high->low' | 'low->high';
+
+// Marcos (ISO) de cada estágio do pipeline — usados para correlacionar erros do
+// teste de carga (ex: blackhole de ~120s) com o instante exato de cada ação
+// (notadamente removeStart = quando o delete-instances dispara).
+export type StageTimings = {
+    additionStart?: string;
+    additionEnd?: string;
+    drainStart?: string;
+    drainEnd?: string;
+    removeStart?: string;
+    vmDeleteStart?: string;
+    removeEnd?: string;
+};
 
 export type MigrationLogEntry = {
     timestamp: string;
@@ -66,6 +79,7 @@ export type MigrationLogEntry = {
     toPool: string;
     policy: MigrationPolicies;
     status: MigrationStatus;
+    stages?: StageTimings;
 };
 
 export type CompensationLogEntry = {
@@ -106,4 +120,5 @@ type MigrationStatus = 'passed' | 'failed';
 export type MigrationPipelineResponse = {
     status: MigrationStatus;
     stage: PipelineStage;
+    stages?: StageTimings;
 };

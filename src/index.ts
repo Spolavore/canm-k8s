@@ -17,7 +17,7 @@ const migrationConfig: MigrationConfig = {
     ...(process.env.DRAIN_PACED && { drainPaced: process.env.DRAIN_PACED == 'TRUE' ? true : false }),
     ...(process.env.DRAIN_BATCH_INTERVAL && { drainBatchTimeout: process.env.DRAIN_BATCH_INTERVAL }),
     ...(process.env.DRAIN_BATCH_SIZE && { drainBatchSize: Number(process.env.DRAIN_BATCH_SIZE) }),
-    ...(process.env.EVICTION_POLICY && { evictionPolicy: process.env.EVICTION_POLICY as 'surge' | 'drain' }),
+    ...(process.env.REMOVE_SETTLE && { removeSettle: process.env.REMOVE_SETTLE }),
 };
 
 const providerConfig = loadProviderConfig();

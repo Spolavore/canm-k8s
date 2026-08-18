@@ -87,17 +87,6 @@ class GkeNodeMigrator {
         );
     }
 
-    async rollingUpdateNode(nodeName: string, timeoutSeconds?: number): Promise<boolean> {
-        logger(COMPONENT, `Surge-evacuating ${nodeName} via rolling update...`);
-        this.cordon(nodeName);
-        const succeeded = await this.k8sClient.rollingUpdateNode(nodeName, timeoutSeconds);
-        if (!succeeded) {
-            logger(COMPONENT, `Error on rolling update (surge) of node ${nodeName}, using draining backoff`);
-            this.drain(nodeName);
-        }
-        return succeeded;
-    }
-
     cordon(nodeName: string): boolean {
         logger(COMPONENT, `Cordoning ${nodeName}...`);
         const cordonSucced = this.k8sClient.cordon(nodeName);
@@ -128,6 +117,13 @@ class GkeNodeMigrator {
         const nodeName = this.addMigInstance(this.lNodePool);
         if (nodeName === null) throw new Error(`Error while trying to add node in lowNodePool`);
         return nodeName;
+    }
+
+    deleteNode(nodeName: string): boolean {
+        logger(COMPONENT, `Deleting node ${nodeName}`);
+        const deleteSucced = this.k8sClient.deleteNode(nodeName);
+        if (!deleteSucced) throw new Error(`Error while deliting node ${nodeName} `);
+        return deleteSucced;
     }
 
     removeNodeHighNodePool(nodeName: string): boolean {

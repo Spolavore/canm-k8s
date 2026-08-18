@@ -88,8 +88,7 @@ canm/
    │
 4. [se migração iniciada] executeMigrationPipeline(node, direction)
    ├── Etapa ADDITION   → GkeNodeMigrator.addNode*()
-   ├── Etapa DRAINING   → mecanismo configurável: drain() one-shot | batchedDrain() por lotes |
-   │                       surge/rollout maxUnavailable=0 (evacuação sem downtime)
+   ├── Etapa DRAINING   → drain() one-shot  ou  batchedDrain() por lotes (DRAIN_PACED)
    └── Etapa REMOVING   → GkeNodeMigrator.removeNode*()
    │
 5. compensate() ou AuditLogger.log() conforme resultado
