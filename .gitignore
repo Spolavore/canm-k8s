@@ -6,3 +6,5 @@ ignore/
 
 # Saída bruta de testes de carga (grande demais p/ GitHub; manter só local)
 *.csv
+*.log
+.env
