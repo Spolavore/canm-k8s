@@ -78,33 +78,12 @@ Antes de iniciar o loop, validar:
 - `gcloud` e `kubectl` estão no PATH com as versões corretas
 - Permissões IAM mínimas estão presentes
 
-### Evacuação por surge (drain sem downtime) — substitui o drain por evicção
+### Promoção Segura (Low → High com Drain Controlado)
 
-A drenagem por evicção (one-shot e pausado) mata o pod antes de o substituto ficar `Ready` →
-gap de capacidade → timeout/502 em **toda** migração, pior nas `low→high` (sob carga alta). A
-solução é evacuar por **surge**: para cada Deployment com pod na origem, fazer rolling replacement
-com `maxUnavailable=0, maxSurge≥1` (pod novo `Ready` **antes** de remover o antigo) → capacidade
-nunca cai → ~0 erro.
+Ao migrar `low→high`, o nó low pool está **sobrecarregado**. Drenar ele pode piorar a situação se não houver capacidade suficiente no cluster para absorver os pods. A melhoria seria:
 
-- **Onde:** dentro do estágio `draining` (novo *modo* de drain, atrás de flag), não um estágio
-  novo. Mantém `MIGRATION_STAGE=draining` → compensação e reconciliação **inalteradas** (falha no
-  surge é tratada como falha de drain).
-- Complementa o `preStop` (que fecha o roteamento para pod morto, mas não o gap de capacidade).
-- Trade-off: recria todas as réplicas dos serviços afetados (mais churn) em troca de zero gap.
-- Resolve diretamente a "Promoção Segura" abaixo: aguardar o destino `Ready` é intrínseco ao surge.
-
-**Implementação atual (`KubernetesClient.rollingUpdateNode`):** usa `kubectl rollout restart` por
-Deployment com pod no nó. Funciona (zero-downtime), mas é **amplo demais** — `rollout restart`
-recria **todas as réplicas** do Deployment (em todos os nós), e com spread 1-por-nó quase todo
-Deployment tem pod no nó → na prática **rola quase o cluster inteiro**, não só os pods do nó. Sem
-erro, mas com churn/tempo desnecessários.
-
-> **Trabalho futuro — evacuação cirúrgica (só os pods do nó):** trocar o `rollout restart` por,
-> para cada Deployment com pod no nó: anotar o pod do nó com
-> `controller.kubernetes.io/pod-deletion-cost` negativo → `scale +1` (pod novo `Ready` em outro nó)
-> → `scale -1` (o controller remove o pod de menor custo = o do nó). Move só a réplica do nó, com
-> surge, sem tocar nas outras réplicas. Mais cirúrgico, porém mais *stateful* (se falhar no meio, o
-> Deployment fica em N+1 — exige cuidado/compensação).
+1. Verificar capacidade disponível no cluster antes de drenar
+2. Aguardar o novo nó high estar pronto **e com pods schedulados** antes de drenar o low
 
 ---
 

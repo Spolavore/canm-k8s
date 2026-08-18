@@ -103,14 +103,10 @@ Se o PDB continuar bloqueando, a migração nunca avança — o source fica pres
 
 **Modo pausado (`DRAIN_PACED=true`):** usa a Eviction API por pod, que **honra o PDB de forma graciosa**. Um bloqueio transitório (`429`) é retentado com backoff dentro do próprio drain; esgotadas as tentativas, o pod é logado e **pulado** (sai depois, no estágio REMOVING) — o drain não falha por causa de um PDB momentâneo. Um PDB que bloqueie **permanentemente** ainda deixa o pod para trás (removido à força no REMOVING), o que pode causar breve indisponibilidade desse serviço.
 
-**Modo surge:** não drena por evicção — faz rolling replacement com `maxUnavailable=0` (pod novo
-`Ready` antes de remover o antigo). Não depende de PDB para evitar o gap de capacidade e **elimina
-os timeouts/502 estruturais da migração** (o lever que faltava — ver [[04 - Migration Pipeline]]).
-
-**Gap de capacidade na evicção (modos legado/pausado):** ambos drenam matando o pod antes de o
-substituto ficar `Ready` → janela de capacidade reduzida → sob carga (pior nas `low→high`) gera
-timeout/502. O `preStop` (handover gracioso) corrige o roteamento para pod morto, mas não o gap de
-capacidade. **Solução: modo surge.**
+**Gap de capacidade na evicção:** o drain mata o pod antes de o substituto ficar `Ready` → janela
+de capacidade reduzida → sob carga (pior nas `low→high`) gera timeout/502 durante a migração. O
+`preStop` (handover gracioso) corrige o roteamento para pod morto, mas não o gap de capacidade.
+Mitigações: ver [[10 - Roadmap]].
 
 **Workaround:** Verificar PDBs antes de configurar thresholds agressivos, ou aumentar `LOW_SCORE_THRESHOLD` para reduzir a frequência de migrações.
 

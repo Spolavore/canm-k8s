@@ -20,6 +20,7 @@ import type {
     MigrationDirection,
     MigrationPipelineResponse,
     ReconciliationLogEntry,
+    StageTimings,
 } from '@/types';
 import { ANNOTATION, logger } from '@/utils';
 import { convertToMs } from '@/utils/date';
@@ -52,7 +53,6 @@ class MigratorOrchestrator {
             lowNodeCoolDown: '5m',
             lowPoolTimeWindowEval: '10m',
             highPoolTimeWindowEval: '10m',
-            evictionPolicy: 'drain',
             drainPaced: false,
             drainBatchSize: 10,
             drainBatchTimeout: '5m',
@@ -253,8 +253,11 @@ class MigratorOrchestrator {
         direction: MigrationDirection,
     ): Promise<MigrationPipelineResponse> {
         let newNode: string | null;
+        const stages: StageTimings = {};
+        const mark = () => new Date().toISOString();
         // Adding node to the other node pool
         try {
+            stages.additionStart = mark();
             this.nodeMigrator.annotateNode(node.node, 'MIGRATION_STAGE', 'addition');
             newNode =
                 direction == 'high->low'
@@ -262,53 +265,53 @@ class MigratorOrchestrator {
                     : this.nodeMigrator.addNodeHighNodePool();
             this.nodeMigrator.annotateNode(newNode!, 'STATE', 'created');
             this.nodeMigrator.annotateNode(newNode!, 'SOURCE_NODE', node.node);
+            stages.additionEnd = mark();
         } catch (error) {
             this.compensate(direction, 'addition', node);
             logger(COMPONENT, `Error on adding node: ${error}`);
-            return { status: 'failed', stage: 'addition' };
+            return { status: 'failed', stage: 'addition', stages };
         }
         // Draining the current node - letting the pods to be reeschedule in the created node
         try {
+            stages.drainStart = mark();
             this.nodeMigrator.annotateNode(node.node, 'MIGRATION_STAGE', 'draining');
-            switch (this.migrationConfig.evictionPolicy) {
-                case 'surge':
-                    await this.nodeMigrator.rollingUpdateNode(node.node);
-                    break;
-                case 'drain':
-                    if (this.migrationConfig.drainPaced) {
-                        await this.nodeMigrator.batchedDrain(
-                            node.node,
-                            this.migrationConfig.drainBatchSize!,
-                            convertToMs(this.migrationConfig.drainBatchTimeout!),
-                        );
-                    } else {
-                        this.nodeMigrator.drain(node.node, 60, true);
-                    }
-                    break;
-                default:
-                    // Nunca seguir para 'removing' sem drenar: lança → compensate('draining').
-                    throw new Error(`Invalid evictionPolicy: ${this.migrationConfig.evictionPolicy}`);
+            if (this.migrationConfig.drainPaced) {
+                await this.nodeMigrator.batchedDrain(
+                    node.node,
+                    this.migrationConfig.drainBatchSize!,
+                    convertToMs(this.migrationConfig.drainBatchTimeout!),
+                );
+            } else {
+                this.nodeMigrator.drain(node.node, 60, true);
             }
+            stages.drainEnd = mark();
         } catch (error) {
             logger(COMPONENT, `Error on draining node ${node.node}: ${error}`);
             this.compensate(direction, 'draining', node, newNode!);
-            return { status: 'failed', stage: 'draining' };
+            return { status: 'failed', stage: 'draining', stages };
         }
 
         // Removing the drained node.
         try {
             this.nodeMigrator.annotateNode(node.node, 'MIGRATION_STAGE', 'removing');
+            if (this.migrationConfig.removeSettle) {
+                await new Promise((resolve) => setTimeout(resolve, convertToMs(this.migrationConfig.removeSettle!)));
+            }
+            stages.removeStart = mark();
+            this.nodeMigrator.deleteNode(node.node);
+            stages.vmDeleteStart = mark();
             direction == 'high->low'
                 ? this.nodeMigrator.removeNodeHighNodePool(node.node)
                 : this.nodeMigrator.removeNodeLowNodePool(node.node);
+            stages.removeEnd = mark();
         } catch (error) {
             logger(COMPONENT, `Error on removing node ${node.node}: ${error}`);
             this.compensate(direction, 'removing', node);
-            return { status: 'failed', stage: 'removing' };
+            return { status: 'failed', stage: 'removing', stages };
         }
 
         this.nodeMigrator.annotateNode(newNode!, 'STATE', 'managed');
-        return { status: 'passed', stage: 'conclued' };
+        return { status: 'passed', stage: 'conclued', stages };
     }
 
     private async migrateNode(node: ExpandedNodeScore) {
@@ -337,6 +340,7 @@ class MigratorOrchestrator {
             toPool: nodePoolTo,
             policy: this.migrationConfig.policy!,
             status: pipelineRes.status,
+            stages: pipelineRes.stages,
         });
     }
 
