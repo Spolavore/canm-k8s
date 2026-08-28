@@ -1,6 +1,6 @@
 # CANM — Cost Aware Node Migration
 
-Operador autônomo que reduz o custo de clusters Kubernetes no GKE migrando nós
+Operador autônomo que reduz o custo de clusters Kubernetes no GKE (até o presente momente) migrando nós
 entre node pools de custos diferentes, de forma reativa às métricas de
 utilização observadas no cluster.
 
@@ -16,11 +16,6 @@ Situação detectada                Ação tomada
 Nó no high pool com score baixo → migra para o low pool (economiza)
 Nó no low pool com score alto   → migra para o high pool (performance)
 ```
-
-O CANM roda **fora do cluster**: não é um controller nativo, não tem CRDs e não
-depende de webhooks. Ele lê métricas do Prometheus, anota nós via SDK do
-Kubernetes e manipula as MIGs do GKE via `gcloud`.
-
 ---
 
 ## Como funciona
